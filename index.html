@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HR портал</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23ffffff'/%3E%3Crect x='1.5' y='1.5' width='61' height='61' rx='12.5' fill='none' stroke='%23D6DDEA' stroke-width='3'/%3E%3Ctext x='32' y='42' font-family='Arial,Helvetica,sans-serif' font-size='28' font-weight='700' text-anchor='middle' fill='%231E4FA3'%3EHR%3C/text%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -28,22 +29,35 @@
   html, body { margin: 0; height: 100%; }
   body { font-family: var(--font); font-size: 15px; line-height: 1.5; color: var(--ink); background: var(--surface); }
 
-  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+  /* ---------- Шапка ---------- */
+  .topbar { position: sticky; top: 0; z-index: 30; height: 56px; display: flex; align-items: center; gap: 12px;
+            padding: 0 16px; background: var(--paper); border-bottom: 1px solid var(--line); }
+  .topbar .brand { font-weight: 700; font-size: 18px; letter-spacing: -0.01em; white-space: nowrap; }
+  .menu-btn { display: none; width: 40px; height: 40px; border: 0; background: none; border-radius: var(--radius);
+              color: var(--ink); align-items: center; justify-content: center; margin-left: -8px; }
+  .menu-btn:hover { background: var(--surface); }
+  .me { margin-left: auto; display: flex; align-items: center; gap: 12px; min-width: 0; font-size: 14px; }
+  .me-text { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; min-width: 0; }
+  .me-text b { font-weight: 600; }
+  .me-text span { color: var(--muted); font-size: 13px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .me .logout { padding: 7px 14px; font-size: 14px; }
+  body.no-shell .menu-btn, body.no-shell .rail { display: none !important; }
+  body.no-shell .app { grid-template-columns: 1fr; }
 
-  /* ---------- Бічна панель ---------- */
-  .rail { background: var(--paper); border-right: 1px solid var(--line); padding: 20px 0; display: flex; flex-direction: column; }
-  .brand { font-weight: 700; font-size: 18px; padding: 0 20px 20px; letter-spacing: -0.01em; }
-  #nav { flex: 1; }
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: calc(100vh - 56px); }
+
+  /* ---------- Бічне меню ---------- */
+  .rail { background: var(--paper); border-right: 1px solid var(--line); padding: 12px 0; }
+  .rail nav { position: sticky; top: 68px; }
   .nav-group { font-size: 13px; color: var(--muted); padding: 16px 20px 6px; }
   .nav-item { display: block; width: 100%; text-align: left; border: 0; background: none; font: inherit; color: var(--ink);
-              padding: 8px 20px 8px 17px; border-left: 3px solid transparent; cursor: pointer; }
+              padding: 10px 20px 10px 17px; border-left: 3px solid transparent; cursor: pointer; }
   .nav-item:hover { background: var(--surface); }
   .nav-item[aria-current="page"] { border-left-color: var(--honey); background: var(--honey-soft); font-weight: 600; }
-  .me { padding: 16px 20px 0; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); word-break: break-all; }
-  .me b { display: block; color: var(--ink); font-weight: 600; word-break: normal; }
+  .scrim { position: fixed; inset: 56px 0 0 0; background: rgba(30, 36, 51, .35); z-index: 20; }
 
   /* ---------- Основна область ---------- */
-  .view { padding: 32px 40px; max-width: 1100px; }
+  .view { padding: 32px 40px; max-width: 1100px; min-width: 0; }
   h1 { font-size: 26px; line-height: 1.25; margin: 0 0 8px; letter-spacing: -0.015em; }
   h2 { font-size: 18px; margin: 28px 0 12px; }
   p { margin: 0 0 12px; max-width: 70ch; }
@@ -87,7 +101,7 @@
   .field { margin-bottom: 16px; }
   .field > label, .field > .label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
   .field .hint { font-size: 13px; color: var(--muted); margin-top: 4px; }
-  input[type=text], input[type=email], input[type=number], input[type=search], select, textarea {
+  input[type=text], input[type=email], input[type=number], input[type=search], input[type=date], select, textarea {
     width: 100%; font: inherit; color: var(--ink); padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper);
   }
   input:disabled { background: var(--surface); color: var(--muted); }
@@ -155,34 +169,65 @@
 
   /* ---------- Телефон ---------- */
   @media (max-width: 760px) {
+    .menu-btn { display: inline-flex; }
     .app { grid-template-columns: 1fr; }
-    .rail { flex-direction: row; flex-wrap: wrap; align-items: center; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
-    .brand { padding: 0 12px 0 4px; }
-    #nav { display: flex; overflow-x: auto; flex: 1 0 100%; order: 3; margin-top: 8px; }
-    .nav-group { display: none; }
-    .nav-item { border-left: 0; border-bottom: 3px solid transparent; padding: 6px 12px; white-space: nowrap; width: auto; }
-    .nav-item[aria-current="page"] { border-bottom-color: var(--honey); }
-    .me { border-top: 0; padding: 0; margin-left: auto; }
-    .view { padding: 20px 16px; }
+    /* Меню — висувна панель під шапкою */
+    .rail { position: fixed; top: 56px; left: 0; right: 0; z-index: 25; border-right: 0; border-bottom: 1px solid var(--line);
+            max-height: calc(100vh - 56px); overflow-y: auto; padding: 4px 0 12px;
+            transform: translateY(-110%); transition: transform .2s ease; box-shadow: 0 8px 24px rgba(30, 36, 51, .15); }
+    body.menu-open .rail { transform: translateY(0); }
+    .rail nav { position: static; }
+    .nav-item { padding: 14px 20px 14px 17px; }
+    .me-text span { max-width: 120px; }
+    .me-text b { display: none; }
+    .view { padding: 20px 16px 40px; }
+    h1 { font-size: 22px; }
     .grid2 { grid-template-columns: 1fr; }
     .details { grid-template-columns: 1fr; }
     .details dd { margin-bottom: 8px; }
-    .filters select, .filters input { width: 100%; }
+    .filters select, .filters input[type=search] { width: 100%; }
+
+    /* Таблиці → картки: кожен рядок — картка, підписи полів беруться із заголовків (data-label) */
+    .table-wrap { border: 0; background: none; overflow: visible; }
+    .table-wrap table { min-width: 0; }
+    .table-wrap thead { display: none; }
+    .table-wrap tr { display: block; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius);
+                     margin-bottom: 10px; padding: 10px 14px; }
+    .table-wrap td { display: grid; grid-template-columns: 38% 1fr; gap: 10px; border: 0; padding: 5px 0; }
+    .table-wrap td::before { content: attr(data-label); color: var(--muted); font-size: 13px; }
+    .table-wrap td:first-child { display: block; font-weight: 600; padding-bottom: 8px; }
+    .table-wrap td:first-child::before, .table-wrap td:not([data-label])::before { content: none; }
+    .table-wrap td:not([data-label]) { display: block; }
+    .table-wrap td.actions { display: block; text-align: left; padding-top: 8px; }
+    .table-wrap td.actions::before { content: none; }
+    .table-wrap td.actions .btn.link { padding-left: 0; }
+    .inline-edit { justify-content: flex-start; }
+    tr.clickable:hover td { background: none; }
+    .panel { padding: 16px; }
+    .submit-bar .btn { flex: 1 1 auto; }
+    input[type=text], input[type=email], input[type=number], input[type=search], input[type=date], select, textarea { font-size: 16px; }
   }
+  @media (prefers-reduced-motion: reduce) { .rail { transition: none; } }
 </style>
 
 </head>
-<body>
+<body class="no-shell">
+  <header class="topbar">
+    <button class="menu-btn" id="menuBtn" aria-label="Меню" aria-expanded="false" aria-controls="rail">
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <div class="brand">HR портал</div>
+    <div class="me" id="me"></div>
+  </header>
   <div class="app">
-    <aside class="rail">
-      <div class="brand">HR портал</div>
+    <aside class="rail" id="rail">
       <nav id="nav" aria-label="Розділи"></nav>
-      <div class="me" id="me"></div>
     </aside>
     <main class="view" id="view">
       <p class="muted">Завантаження…</p>
     </main>
   </div>
+  <div class="scrim" id="scrim" hidden></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script>
   const ROLE_LABELS = {
@@ -266,7 +311,53 @@
     state.boot = null;
     $('#nav').innerHTML = '';
     $('#me').innerHTML = '';
+    document.body.classList.add('no-shell');
+    setMenu(false);
+    document.title = 'HR портал';
   }
+
+  // ---------- Меню на телефоні ----------
+
+  function setMenu(open) {
+    document.body.classList.toggle('menu-open', open);
+    const btn = $('#menuBtn'), scrim = $('#scrim');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (scrim) scrim.hidden = !open;
+  }
+
+  function initMenu() {
+    const btn = $('#menuBtn'), scrim = $('#scrim');
+    if (btn) btn.onclick = () => setMenu(!document.body.classList.contains('menu-open'));
+    if (scrim) scrim.onclick = () => setMenu(false);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });
+  }
+
+  // Вимкнути автозаповнення браузера (паролі, картки, адреси) на всіх полях порталу
+  function disableAutofill(root) {
+    root.querySelectorAll('input:not([type=checkbox]):not([type=radio]):not([type=file]):not([autocomplete])')
+      .forEach(i => i.setAttribute('autocomplete', 'off'));
+  }
+  // Підписи для карток на телефоні: кожна клітинка отримує назву свого стовпця
+  function labelTables(root) {
+    root.querySelectorAll('.table-wrap table').forEach(t => {
+      const heads = Array.from(t.querySelectorAll('thead th')).map(th => th.textContent.trim());
+      if (!heads.length) return;
+      t.querySelectorAll('tbody tr').forEach(tr => {
+        Array.from(tr.children).forEach((td, i) => {
+          if (td.dataset.wrapped) return;
+          if (heads[i] && !td.hasAttribute('colspan')) td.setAttribute('data-label', heads[i]);
+          // вміст клітинки — одним блоком, щоб у картці підпис і значення стояли у дві колонки
+          const box = document.createElement('div');
+          while (td.firstChild) box.appendChild(td.firstChild);
+          td.appendChild(box);
+          td.dataset.wrapped = '1';
+        });
+      });
+    });
+  }
+  new MutationObserver(() => { disableAutofill(document); labelTables(document); })
+    .observe(document.getElementById('view'), { childList: true, subtree: true });
+  initMenu();
 
   // ---------- Вхід ----------
 
@@ -368,15 +459,22 @@
       const b = e.target.closest('.nav-item');
       if (b) go(b.dataset.page);
     };
+    document.body.classList.remove('no-shell');
     const me = state.boot.me;
     state.lastEmail = me.email;
-    $('#me').innerHTML = '<b>' + esc(ROLE_LABELS[me.role] || me.role) + '</b>' + esc(me.email) +
-      '<button class="btn link logout" id="logout">Вийти</button>';
+    $('#me').innerHTML = '<div class="me-text"><b>' + esc(ROLE_LABELS[me.role] || me.role) + '</b><span>' + esc(me.email) + '</span></div>' +
+      '<button class="btn logout" id="logout">Вийти</button>';
     $('#logout').onclick = logout;
   }
 
+  const PAGE_TITLES = { home: 'Головна', request: 'Нова заявка', mine: 'Мої заявки', hrdesk: 'Черга HR',
+    accounting: 'Бухгалтерія', employees: 'Працівники', users: 'Користувачі', dicts: 'Довідники', security: 'Безпека' };
+
   function go(page) {
     state.page = page;
+    setMenu(false);
+    document.title = 'HR портал | ' + (PAGE_TITLES[page] || '');
+    window.scrollTo(0, 0);
     document.querySelectorAll('.nav-item').forEach(b => {
       if (b.dataset.page === page) b.setAttribute('aria-current', 'page');
       else b.removeAttribute('aria-current');
