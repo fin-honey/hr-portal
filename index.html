@@ -1,0 +1,1793 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HR портал</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="config.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root {
+    --ink: #1E2433;
+    --muted: #5D6577;
+    --line: #DDE1E8;
+    --surface: #F5F6F8;
+    --paper: #FFFFFF;
+    --honey: #9A6206;
+    --honey-soft: #FBF1DE;
+    --ok: #2E7D4F;
+    --err: #B3261E;
+    --radius: 6px;
+    --font: 'Onest', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: var(--font); font-size: 15px; line-height: 1.5; color: var(--ink); background: var(--surface); }
+
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+
+  /* ---------- Бічна панель ---------- */
+  .rail { background: var(--paper); border-right: 1px solid var(--line); padding: 20px 0; display: flex; flex-direction: column; }
+  .brand { font-weight: 700; font-size: 18px; padding: 0 20px 20px; letter-spacing: -0.01em; }
+  #nav { flex: 1; }
+  .nav-group { font-size: 13px; color: var(--muted); padding: 16px 20px 6px; }
+  .nav-item { display: block; width: 100%; text-align: left; border: 0; background: none; font: inherit; color: var(--ink);
+              padding: 8px 20px 8px 17px; border-left: 3px solid transparent; cursor: pointer; }
+  .nav-item:hover { background: var(--surface); }
+  .nav-item[aria-current="page"] { border-left-color: var(--honey); background: var(--honey-soft); font-weight: 600; }
+  .me { padding: 16px 20px 0; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); word-break: break-all; }
+  .me b { display: block; color: var(--ink); font-weight: 600; word-break: normal; }
+
+  /* ---------- Основна область ---------- */
+  .view { padding: 32px 40px; max-width: 1100px; }
+  h1 { font-size: 26px; line-height: 1.25; margin: 0 0 8px; letter-spacing: -0.015em; }
+  h2 { font-size: 18px; margin: 28px 0 12px; }
+  p { margin: 0 0 12px; max-width: 70ch; }
+  .muted { color: var(--muted); }
+  .error { color: var(--err); }
+  .lead { color: var(--muted); margin-bottom: 24px; }
+
+  .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 20px 0 12px; }
+  .toolbar .grow { flex: 1; }
+
+  /* ---------- Таблиці ---------- */
+  .table-wrap { overflow-x: auto; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 13px; font-weight: 600; color: var(--muted); background: var(--surface); }
+  tr:last-child td { border-bottom: 0; }
+  tr.inactive td { color: var(--muted); }
+  td.actions { text-align: right; white-space: nowrap; }
+
+  .tag { display: inline-block; font-size: 13px; padding: 1px 8px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); margin: 0 4px 4px 0; }
+  .tag.off { color: var(--muted); }
+
+  /* ---------- Кнопки і поля ---------- */
+  button, .btn { font: inherit; border-radius: var(--radius); cursor: pointer; }
+  .btn { padding: 8px 16px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); }
+  .btn:hover { background: var(--surface); }
+  .btn.primary { background: var(--honey); border-color: var(--honey); color: #fff; font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.link { border: 0; background: none; color: var(--honey); padding: 4px 6px; font-weight: 600; }
+  .btn.danger { background: var(--paper); border-color: var(--err); color: var(--err); font-weight: 600; }
+  .btn.danger:hover { background: #FCEDEC; }
+  .btn[data-armed="1"] { background: var(--err); border-color: var(--err); color: #fff; }
+  .me .logout { display: block; padding: 6px 0 0; }
+  input.otp { font-size: 22px; letter-spacing: 0.3em; max-width: 200px; font-variant-numeric: tabular-nums; }
+  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  :focus-visible { outline: 2px solid var(--honey); outline-offset: 2px; }
+
+  .panel { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 24px; margin: 16px 0 24px; max-width: 640px; }
+  .panel h2 { margin-top: 0; }
+  .field { margin-bottom: 16px; }
+  .field > label, .field > .label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+  .field .hint { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  input[type=text], input[type=email], input[type=number], input[type=search], select, textarea {
+    width: 100%; font: inherit; color: var(--ink); padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper);
+  }
+  input:disabled { background: var(--surface); color: var(--muted); }
+  .check { display: flex; gap: 8px; align-items: center; font-weight: 400; cursor: pointer; }
+  .check input { width: 16px; height: 16px; accent-color: var(--honey); }
+
+  .picklist { border: 1px solid var(--line); border-radius: var(--radius); max-height: 220px; overflow-y: auto; padding: 6px 10px; margin-top: 8px; }
+  .picklist .check { padding: 4px 0; }
+  .form-actions { display: flex; gap: 12px; margin-top: 8px; }
+
+  /* ---------- Форма заявки ---------- */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .choices { display: grid; gap: 8px; }
+  .choice { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; font-weight: 400; }
+  .choice input { margin-top: 4px; accent-color: var(--honey); }
+  .choice b { font-weight: 600; }
+  .choice-desc { display: block; color: var(--muted); font-size: 14px; }
+  .choice:has(input:checked) { border-color: var(--honey); background: var(--honey-soft); }
+
+  .combo { position: relative; }
+  .combo-list { position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 4px); max-height: 280px; overflow-y: auto;
+                background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 6px 18px rgba(30, 36, 51, .12); }
+  .combo-opt { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 12px; font: inherit; color: var(--ink); cursor: pointer; }
+  .combo-opt:hover, .combo-opt:focus { background: var(--honey-soft); }
+  .combo-empty { padding: 8px 12px; }
+
+  .field.invalid input, .field.invalid select, .field.invalid .choices { border-color: var(--err); }
+  .field.invalid .choices { border: 1px solid var(--err); border-radius: var(--radius); padding: 6px; }
+  .submit-bar { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; margin: 8px 0 40px; max-width: 640px; }
+  .submit-bar .btn.primary { padding: 10px 22px; }
+  .form-error { flex: 1; min-width: 240px; background: #FCEDEC; border: 1px solid var(--err); color: var(--err); border-radius: var(--radius); padding: 9px 14px; }
+
+  /* Результат перевірки дати й часу візиту */
+  .status-box { border: 1px solid var(--line); border-left-width: 4px; border-radius: var(--radius); padding: 10px 14px; background: var(--surface); color: var(--muted); }
+  .status-box.ok { border-color: #B8DCC6; border-left-color: var(--ok); background: #EEF7F1; color: var(--ok); }
+  .status-box.warn { border-color: #EBD3A6; border-left-color: var(--honey); background: var(--honey-soft); color: var(--honey); }
+  .status-box.err { border-color: #F0C2BF; border-left-color: var(--err); background: #FCEDEC; color: var(--err); }
+  .status-box .check { margin-top: 8px; color: var(--ink); font-weight: 600; }
+  .panel.invalid-block { border-color: var(--err); }
+
+  .tag.new { background: var(--honey-soft); border-color: #EBD3A6; color: var(--honey); }
+  .tag.done { background: #EEF7F1; border-color: #B8DCC6; color: var(--ok); }
+  tr.clickable { cursor: pointer; }
+  tr.clickable:hover td { background: var(--surface); }
+  .details { display: grid; grid-template-columns: minmax(160px, 34%) 1fr; gap: 6px 16px; margin: 0 0 16px; }
+  .details dt { color: var(--muted); }
+  .details dd { margin: 0; }
+  .detail-block { padding: 14px 0 4px; border-top: 1px solid var(--line); }
+  .detail-block:first-of-type { border-top: 0; padding-top: 4px; }
+  .detail-block h3 { font-size: 14px; font-weight: 600; color: var(--muted); margin: 0 0 8px; }
+  .details dd.highlight { font-weight: 700; color: var(--honey); }
+  .filters select { width: auto; }
+  .inline-edit { display: flex; gap: 6px; justify-content: flex-end; }
+  .inline-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .inline-row select { flex: 1; min-width: 220px; }
+  .inline-edit input { width: 120px; }
+
+  /* ---------- Повідомлення ---------- */
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+           background: var(--ink); color: #fff; padding: 10px 18px; border-radius: var(--radius); transition: opacity .2s, transform .2s; max-width: 90vw; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.err { background: var(--err); }
+
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+  /* ---------- Телефон ---------- */
+  @media (max-width: 760px) {
+    .app { grid-template-columns: 1fr; }
+    .rail { flex-direction: row; flex-wrap: wrap; align-items: center; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
+    .brand { padding: 0 12px 0 4px; }
+    #nav { display: flex; overflow-x: auto; flex: 1 0 100%; order: 3; margin-top: 8px; }
+    .nav-group { display: none; }
+    .nav-item { border-left: 0; border-bottom: 3px solid transparent; padding: 6px 12px; white-space: nowrap; width: auto; }
+    .nav-item[aria-current="page"] { border-bottom-color: var(--honey); }
+    .me { border-top: 0; padding: 0; margin-left: auto; }
+    .view { padding: 20px 16px; }
+    .grid2 { grid-template-columns: 1fr; }
+    .details { grid-template-columns: 1fr; }
+    .details dd { margin-bottom: 8px; }
+    .filters select, .filters input { width: 100%; }
+  }
+</style>
+
+</head>
+<body>
+  <div class="app">
+    <aside class="rail">
+      <div class="brand">HR портал</div>
+      <nav id="nav" aria-label="Розділи"></nav>
+      <div class="me" id="me"></div>
+    </aside>
+    <main class="view" id="view">
+      <p class="muted">Завантаження…</p>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+  const ROLE_LABELS = {
+    superadmin: 'Суперадмін',
+    admin: 'Адміністратор',
+    hr: 'Відділ кадрів',
+    manager: 'Керівник підрозділу',
+    accountant: 'Бухгалтер'
+  };
+
+  const state = { boot: null, page: 'home', users: null, dict: null };
+  const $ = sel => document.querySelector(sel);
+  const view = () => $('#view');
+
+  // ---------- Сервер ----------
+
+  const GATE_CODES = ['NO_SESSION', 'LOCKED', 'NO_ACCESS'];
+
+  function api(action, payload) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(r => {
+          if (r && r.ok) return resolve(r.data);
+          // Сесію завершено або портал закрито під час роботи — повертаємо на сторінку входу
+          if (r && GATE_CODES.indexOf(r.code) !== -1 && !action.startsWith('auth.')) {
+            showGate(r);
+            return reject({ error: '', gate: true });
+          }
+          reject(r || { error: 'Порожня відповідь сервера' });
+        })
+        .withFailureHandler(e => reject({ error: e.message }))
+        .callBackend(action, payload || {});
+    });
+  }
+
+  // ---------- Утиліти ----------
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  let toastTimer = null;
+  function toast(msg, isError) {
+    const el = $('#toast');
+    el.textContent = msg;
+    el.className = 'toast show' + (isError ? ' err' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = 'toast'; }, isError ? 6000 : 3000);
+  }
+
+  function unitsLabel(units) {
+    if (!units || !units.length) return '<span class="muted">—</span>';
+    if (units.indexOf('*') !== -1) return '<span class="tag">Усі підрозділи</span>';
+    return units.map(u => '<span class="tag">' + esc(u) + '</span>').join('');
+  }
+
+  async function withBusy(button, fn) {
+    button.disabled = true;
+    try { await fn(); }
+    catch (e) { if (!e.gate) toast(e.error || String(e), true); }
+    finally { button.disabled = false; }
+  }
+
+  // ---------- Старт і навігація ----------
+
+  async function start() {
+    try {
+      state.boot = await api('bootstrap');
+      renderShell();
+      go('home');
+    } catch (e) {
+      if (e.gate) return;
+      clearShell();
+      view().innerHTML = '<h1>Портал не завантажився</h1><p class="error">' + esc(e.error) + '</p>' +
+        '<p>Оновіть сторінку. Якщо помилка повторюється, надішліть цей текст адміністратору.</p>';
+    }
+  }
+
+  function clearShell() {
+    state.boot = null;
+    $('#nav').innerHTML = '';
+    $('#me').innerHTML = '';
+  }
+
+  // ---------- Вхід ----------
+
+  const OTHER_ACCOUNT_HINT = 'Інший Google-акаунт? Вийдіть з Google у цьому браузері або відкрийте портал в іншому профілі браузера.';
+
+  function showGate(r) {
+    clearShell();
+    if (r.code === 'NO_SESSION') return renderLogin(r.email);
+    if (r.code === 'LOCKED') {
+      view().innerHTML = '<h1>Портал тимчасово закритий</h1>' +
+        '<p>Доступ закрив адміністратор. Спробуйте пізніше або зверніться до адміністратора.</p>' +
+        '<p class="muted">Ви відкрили портал з акаунта ' + esc(r.email) + '.</p>';
+      return;
+    }
+    view().innerHTML = '<h1>Немає доступу</h1><p>Ви відкрили портал з акаунта <b>' + esc(r.email) + '</b>.</p>' +
+      '<p>Попросіть адміністратора додати цей email до користувачів порталу, потім оновіть сторінку.</p>' +
+      '<p class="muted">' + OTHER_ACCOUNT_HINT + '</p>';
+  }
+
+  function renderLogin(email) {
+    view().innerHTML =
+      '<h1>Вхід у HR портал</h1>' +
+      '<div class="panel">' +
+        '<p>Ви відкрили портал з акаунта <b>' + esc(email) + '</b>. Щоб увійти, надішлемо одноразовий код на цю пошту.</p>' +
+        '<div class="form-actions"><button class="btn primary" id="sendCode">Надіслати код</button></div>' +
+        '<div id="codeStep" hidden>' +
+          '<div class="field" style="margin-top:20px"><label for="otp">Код з листа</label>' +
+            '<input type="text" id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="otp" placeholder="000000">' +
+            '<div class="hint">Код дійсний 10 хвилин. Лист може прийти в «Спам».</div></div>' +
+          '<div class="form-actions"><button class="btn primary" id="verify">Увійти</button></div>' +
+        '</div>' +
+        '<div class="form-error" id="loginError" hidden style="margin-top:16px"></div>' +
+      '</div>' +
+      '<p class="muted">' + OTHER_ACCOUNT_HINT + '</p>';
+
+    const err = msg => { const b = $('#loginError'); b.textContent = msg; b.hidden = !msg; };
+    $('#sendCode').onclick = e => withBusy(e.target, async () => {
+      err('');
+      try {
+        await api('auth.sendCode');
+        $('#codeStep').hidden = false;
+        $('#sendCode').textContent = 'Надіслати новий код';
+        $('#otp').focus();
+        toast('Код надіслано на ' + email);
+      } catch (x) { err(x.error); }
+    });
+    const verify = btn => withBusy(btn, async () => {
+      err('');
+      try {
+        await api('auth.verify', { code: $('#otp').value });
+        start();
+      } catch (x) { err(x.error); }
+    });
+    $('#verify').onclick = e => verify(e.target);
+    $('#otp').addEventListener('keydown', e => { if (e.key === 'Enter') verify($('#verify')); });
+  }
+
+  async function logout() {
+    try { await api('auth.logout'); } catch (e) { /* сесію однаково вважаємо завершеною */ }
+    clearShell();
+    renderLogin(state.lastEmail || '');
+  }
+
+  // Друге натискання підтверджує небезпечну дію
+  function confirmTwice(button, fn) {
+    if (button.dataset.armed === '1') {
+      button.dataset.armed = '';
+      button.textContent = button.dataset.label;
+      return withBusy(button, fn);
+    }
+    button.dataset.label = button.textContent;
+    button.dataset.armed = '1';
+    button.textContent = 'Натисніть ще раз, щоб підтвердити';
+    setTimeout(() => {
+      if (button.dataset.armed === '1') { button.dataset.armed = ''; button.textContent = button.dataset.label; }
+    }, 5000);
+  }
+
+  function navItems() {
+    const b = state.boot;
+    const items = [{ id: 'home', label: 'Головна' }];
+    if (b.canSubmit) items.push({ id: 'request', label: 'Нова заявка' }, { id: 'mine', label: 'Мої заявки' });
+    if (b.canHrDesk) items.push({ id: 'hrdesk', label: 'Черга HR' });
+    if (b.canAccounting) items.push({ id: 'accounting', label: 'Бухгалтерія' });
+    if (b.canViewEmployees) items.push({ id: 'employees', label: 'Працівники' });
+    const settings = [];
+    if (b.canManageUsers) settings.push({ id: 'users', label: 'Користувачі' });
+    if (b.editableDicts.length) settings.push({ id: 'dicts', label: 'Довідники' });
+    if (b.canSecurity) settings.push({ id: 'security', label: 'Безпека' });
+    return { items, settings };
+  }
+
+  function renderShell() {
+    const { items, settings } = navItems();
+    const btn = i => '<button class="nav-item" data-page="' + i.id + '">' + esc(i.label) + '</button>';
+    $('#nav').innerHTML = items.map(btn).join('') +
+      (settings.length ? '<div class="nav-group">Налаштування</div>' + settings.map(btn).join('') : '');
+    $('#nav').onclick = e => {
+      const b = e.target.closest('.nav-item');
+      if (b) go(b.dataset.page);
+    };
+    const me = state.boot.me;
+    state.lastEmail = me.email;
+    $('#me').innerHTML = '<b>' + esc(ROLE_LABELS[me.role] || me.role) + '</b>' + esc(me.email) +
+      '<button class="btn link logout" id="logout">Вийти</button>';
+    $('#logout').onclick = logout;
+  }
+
+  function go(page) {
+    state.page = page;
+    document.querySelectorAll('.nav-item').forEach(b => {
+      if (b.dataset.page === page) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    });
+    view().onchange = null;
+    ({ home: renderHome, request: renderRequest, mine: renderMine, employees: renderEmployees, hrdesk: renderHrDesk, accounting: renderAccounting,
+       users: renderUsers, dicts: renderDictList, security: renderSecurity })[page]();
+  }
+
+  // ---------- Головна ----------
+
+  function renderHome() {
+    const me = state.boot.me;
+    view().innerHTML =
+      '<h1>Вітаємо в HR порталі</h1>' +
+      '<p class="lead">Тут керівники подають кадрові заявки, а відділ кадрів веде їх до оформлення.</p>' +
+      '<div class="panel">' +
+        '<div class="field"><div class="label">Ви увійшли як</div>' + esc(me.email) + '</div>' +
+        '<div class="field"><div class="label">Роль</div>' + esc(ROLE_LABELS[me.role] || me.role) + '</div>' +
+        '<div class="field"><div class="label">Підрозділи</div>' + unitsLabel(me.units) + '</div>' +
+      '</div>' +
+      (state.boot.canSubmit
+        ? '<p><button class="btn primary" id="homeRequest">Подати кадрову заявку</button></p>'
+        : '');
+    const hb = $('#homeRequest');
+    if (hb) hb.onclick = () => go('request');
+  }
+
+  // ---------- Користувачі ----------
+
+  async function renderUsers() {
+    view().innerHTML = '<h1>Користувачі</h1><p class="muted">Завантаження…</p>';
+    try {
+      state.users = await api('users.list');
+      drawUsers();
+    } catch (e) {
+      view().innerHTML = '<h1>Користувачі</h1><p class="error">' + esc(e.error) + '</p>';
+    }
+  }
+
+  function canEditUser(u) {
+    return state.boot.me.role === 'superadmin' || u.role !== 'admin';
+  }
+
+  function drawUsers(filter) {
+    const d = state.users;
+    const q = (filter || '').toLowerCase();
+    const list = d.users.filter(u => !q || u.email.indexOf(q) !== -1 || u.units.join(' ').toLowerCase().indexOf(q) !== -1);
+
+    view().innerHTML =
+      '<h1>Користувачі</h1>' +
+      '<p class="lead">Хто має доступ до порталу і в яких підрозділах. Людина входить своїм Google-акаунтом.</p>' +
+      '<div id="userForm"></div>' +
+      '<div class="toolbar">' +
+        '<input type="search" id="userSearch" class="grow" placeholder="Пошук за email або підрозділом" value="' + esc(filter || '') + '">' +
+        '<button class="btn primary" id="addUser">Додати користувача</button>' +
+      '</div>' +
+      '<div class="table-wrap"><table>' +
+        '<thead><tr><th>Email</th><th>Роль</th><th>Підрозділи</th><th>Статус</th><th></th></tr></thead><tbody>' +
+          '<tr><td>' + esc(d.owner) + '</td><td>' + ROLE_LABELS.superadmin + '</td><td>' + unitsLabel(['*']) + '</td><td>Власник системи</td><td></td></tr>' +
+          list.map(u =>
+            '<tr class="' + (u.active ? '' : 'inactive') + '">' +
+              '<td>' + esc(u.email) + (u.note ? '<div class="muted">' + esc(u.note) + '</div>' : '') + '</td>' +
+              '<td>' + esc(ROLE_LABELS[u.role] || u.role) + '</td>' +
+              '<td>' + unitsLabel(u.units) + '</td>' +
+              '<td>' + (u.active ? 'Активний' : 'Вимкнений') + '</td>' +
+              '<td class="actions">' + (canEditUser(u) ? '<button class="btn link" data-edit="' + esc(u.email) + '">Змінити</button>' : '') + '</td>' +
+            '</tr>').join('') +
+        '</tbody></table></div>' +
+      (list.length ? '' : '<p class="muted" style="margin-top:12px">Нікого не знайдено. Змініть пошук або додайте користувача.</p>');
+
+    $('#userSearch').oninput = e => {
+      const pos = e.target.selectionStart;
+      drawUsers(e.target.value);
+      const s = $('#userSearch'); s.focus(); s.setSelectionRange(pos, pos);
+    };
+    $('#addUser').onclick = () => openUserForm(null);
+    view().querySelectorAll('[data-edit]').forEach(b =>
+      b.onclick = () => openUserForm(d.users.find(u => u.email === b.dataset.edit)));
+  }
+
+  function openUserForm(user) {
+    const isNew = !user;
+    const u = user || { email: '', role: 'manager', units: [], active: true, note: '' };
+    const roles = state.users.assignableRoles;
+
+    $('#userForm').innerHTML =
+      '<div class="panel">' +
+        '<h2>' + (isNew ? 'Новий користувач' : 'Змінити користувача') + '</h2>' +
+        '<div class="field"><label for="fEmail">Email (Google-акаунт)</label>' +
+          '<input type="email" id="fEmail" value="' + esc(u.email) + '"' + (isNew ? '' : ' disabled') + '>' +
+          (isNew ? '' : '<div class="hint">Email змінити не можна. Якщо людина змінила акаунт, вимкніть цей запис і додайте новий.</div>') +
+        '</div>' +
+        '<div class="field"><label for="fRole">Роль</label><select id="fRole">' +
+          roles.map(r => '<option value="' + r + '"' + (r === u.role ? ' selected' : '') + '>' + esc(ROLE_LABELS[r]) + '</option>').join('') +
+        '</select></div>' +
+        '<div class="field"><div class="label">Підрозділи</div><div id="unitsInfo"></div></div>' +
+        '<div class="field"><label class="check"><input type="checkbox" id="fActive"' + (u.active ? ' checked' : '') + '> Доступ відкритий</label>' +
+          '<div class="hint">Зніміть, щоб закрити доступ. Запис залишиться в історії.</div></div>' +
+        '<div class="field"><label for="fNote">Примітка</label><input type="text" id="fNote" value="' + esc(u.note) + '"></div>' +
+        '<div class="form-actions">' +
+          '<button class="btn primary" id="fSave">' + (isNew ? 'Додати користувача' : 'Зберегти зміни') + '</button>' +
+          '<button class="btn" id="fCancel">Скасувати</button>' +
+        '</div>' +
+      '</div>';
+
+    // Підрозділи: у керівника — з довідника «Підрозділи», інші ролі централізовані й бачать усі
+    const showUnits = role => {
+      $('#unitsInfo').innerHTML = role === 'manager'
+        ? unitsLabel(user && user.role === 'manager' ? u.units : []) +
+          '<div class="hint">Керівника призначають у довіднику «Підрозділи», колонка «Керівник».</div>'
+        : unitsLabel(['*']) + '<div class="hint">Централізована роль: бачить усі підрозділи.</div>';
+    };
+    showUnits(u.role);
+    $('#fRole').onchange = e => showUnits(e.target.value);
+    $('#fCancel').onclick = () => { $('#userForm').innerHTML = ''; };
+    $('#fSave').onclick = e => withBusy(e.target, async () => {
+      const units = [];
+      state.users = await api('users.save', {
+        isNew: isNew,
+        email: $('#fEmail').value,
+        role: $('#fRole').value,
+        units: units,
+        active: $('#fActive').checked,
+        note: $('#fNote').value
+      });
+      toast(isNew ? 'Користувача додано' : 'Зміни збережено');
+      drawUsers();
+    });
+    (isNew ? $('#fEmail') : $('#fRole')).focus();
+    $('#userForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---------- Довідники ----------
+
+  function renderDictList() {
+    const dicts = state.boot.editableDicts;
+    view().innerHTML =
+      '<h1>Довідники</h1>' +
+      '<p class="lead">Списки, з яких обирають значення у формах порталу. Значення не видаляються: вимкнене значення зникає зі списків, але лишається в старих записах.</p>' +
+      '<div class="table-wrap"><table><tbody>' +
+        dicts.map(d => '<tr><td>' + esc(d.name) + '</td><td class="actions"><button class="btn link" data-dict="' + esc(d.code) + '">Відкрити</button></td></tr>').join('') +
+      '</tbody></table></div>';
+    view().querySelectorAll('[data-dict]').forEach(b => b.onclick = () => openDict(b.dataset.dict));
+  }
+
+  async function openDict(code) {
+    view().innerHTML = '<h1>Довідники</h1><p class="muted">Завантаження…</p>';
+    try {
+      state.dict = await api('dicts.get', { code: code });
+      drawDict();
+    } catch (e) {
+      view().innerHTML = '<h1>Довідники</h1><p class="error">' + esc(e.error) + '</p>';
+    }
+  }
+
+  function cellView(header, v) {
+    if (header === 'Активний') return v === true ? 'Так' : '<span class="muted">Ні</span>';
+    return esc(v);
+  }
+
+  function drawDict() {
+    const d = state.dict;
+    const iActive = d.headers.indexOf('Активний');
+    view().innerHTML =
+      '<p><button class="btn link" id="backToDicts">← Усі довідники</button></p>' +
+      '<h1>' + esc(d.name) + '</h1>' +
+      '<div id="dictForm"></div>' +
+      '<div class="toolbar"><span class="grow muted">Значень: ' + d.rows.length + '</span>' +
+        '<button class="btn primary" id="addValue">Додати значення</button></div>' +
+      '<div class="table-wrap"><table>' +
+        '<thead><tr>' + d.headers.map(h => '<th>' + esc(h) + '</th>').join('') + '<th></th></tr></thead><tbody>' +
+          d.rows.map(r =>
+            '<tr class="' + (iActive !== -1 && r.values[iActive] !== true ? 'inactive' : '') + '">' +
+              r.values.map((v, i) => '<td>' + cellView(d.headers[i], v) + '</td>').join('') +
+              '<td class="actions"><button class="btn link" data-row="' + r.row + '">Змінити</button></td>' +
+            '</tr>').join('') +
+        '</tbody></table></div>' +
+      (d.rows.length ? '' : '<p class="muted" style="margin-top:12px">Довідник порожній. Додайте перше значення.</p>');
+
+    $('#backToDicts').onclick = () => renderDictList();
+    $('#addValue').onclick = () => openDictForm(null);
+    view().querySelectorAll('[data-row]').forEach(b =>
+      b.onclick = () => openDictForm(d.rows.find(r => r.row === Number(b.dataset.row))));
+  }
+
+  function openDictForm(row) {
+    const d = state.dict;
+    const isNew = !row;
+    const values = row ? row.values : d.headers.map(h => h === 'Активний' ? true : (h === 'Порядок' ? d.rows.length + 1 : ''));
+
+    const field = (h, v, i) => {
+      const id = 'dv' + i;
+      if (h === 'Активний') {
+        return '<div class="field"><label class="check"><input type="checkbox" id="' + id + '"' + (v === true ? ' checked' : '') + '> Активне (показується у списках)</label></div>';
+      }
+      const options = (d.columnOptions || {})[h];
+      if (options) {
+        return '<div class="field"><label for="' + id + '">' + esc(h) + '</label><select id="' + id + '"><option value="">— не призначено —</option>' +
+          options.map(o => '<option' + (o === String(v).toLowerCase() ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select>' +
+          '<div class="hint">Список: користувачі з роллю «Керівник підрозділу».</div></div>';
+      }
+      const type = h === 'Порядок' ? 'number' : 'text';
+      const hint = (h === 'Значення' && !isNew) ? '<div class="hint">Перейменування не змінює вже внесені записи — вони збережуть стару назву.</div>' : '';
+      return '<div class="field"><label for="' + id + '">' + esc(h) + '</label><input type="' + type + '" id="' + id + '" value="' + esc(v) + '">' + hint + '</div>';
+    };
+
+    $('#dictForm').innerHTML =
+      '<div class="panel">' +
+        '<h2>' + (isNew ? 'Нове значення' : 'Змінити значення') + '</h2>' +
+        d.headers.map((h, i) => field(h, values[i], i)).join('') +
+        '<div class="form-actions">' +
+          '<button class="btn primary" id="dSave">' + (isNew ? 'Додати значення' : 'Зберегти зміни') + '</button>' +
+          '<button class="btn" id="dCancel">Скасувати</button>' +
+        '</div>' +
+      '</div>';
+
+    $('#dCancel').onclick = () => { $('#dictForm').innerHTML = ''; };
+    $('#dSave').onclick = e => withBusy(e.target, async () => {
+      const out = d.headers.map((h, i) => {
+        const el = $('#dv' + i);
+        return h === 'Активний' ? el.checked : el.value;
+      });
+      state.dict = await api('dicts.save', { code: d.code, row: row ? row.row : null, values: out });
+      if (d.code === 'units') state.boot = await api('bootstrap'); // оновити список підрозділів для форм
+      toast(isNew ? 'Значення додано' : 'Зміни збережено');
+      drawDict();
+    });
+    $('#dv0').focus();
+    $('#dictForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---------- Нова заявка ----------
+
+  let F = null;            // дані для форми з сервера
+  let slotState = null;    // { date, weekend, busy: {година: кількість} } для обраної дати візиту
+  const OTHER = '__other';
+
+  async function renderRequest() {
+    view().innerHTML = '<h1>Нова заявка</h1><p class="muted">Завантаження…</p>';
+    try {
+      F = await api('form.init');
+      slotState = null;
+      drawRequestForm();
+    } catch (e) {
+      view().innerHTML = '<h1>Нова заявка</h1><p class="error">' + esc(e.error) + '</p>';
+    }
+  }
+
+  // --- елементи форми ---
+
+  const byName = (a, b) => a.label.localeCompare(b.label, 'uk');
+  function mapOptions(map) { return Object.keys(map).map(k => ({ v: k, l: map[k] })); }
+  function listOptions(list) { return list.map(x => ({ v: x, l: x })); }
+
+  function radios(name, options, label) {
+    return '<div class="field"><div class="label">' + esc(label) + '</div>' +
+      '<div class="choices" data-req="' + esc(label) + '" data-kind="radio" data-name="' + name + '">' +
+      options.map(o => '<label class="choice"><input type="radio" name="' + name + '" value="' + esc(o.v) + '"> ' +
+        '<span><b>' + esc(o.l) + '</b>' + (o.d ? '<span class="choice-desc">' + esc(o.d) + '</span>' : '') + '</span></label>').join('') +
+      '</div></div>';
+  }
+
+  function select(id, label, list) {
+    return '<div class="field"><label for="' + id + '">' + esc(label) + '</label>' +
+      '<select id="' + id + '" data-req="' + esc(label) + '"><option value="">Оберіть…</option>' +
+      list.map(x => '<option>' + esc(x) + '</option>').join('') + '</select></div>';
+  }
+
+  function input(id, label, type, opts) {
+    opts = opts || {};
+    return '<div class="field"><label for="' + id + '">' + esc(label) + (opts.optional ? ' <span class="muted">(необов\'язково)</span>' : '') + '</label>' +
+      '<input type="' + type + '" id="' + id + '"' + (opts.optional ? '' : ' data-req="' + esc(label) + '"') +
+      (opts.min ? ' min="' + opts.min + '"' : '') + '>' +
+      (opts.hint ? '<div class="hint">' + esc(opts.hint) + '</div>' : '') + '</div>';
+  }
+
+  function comboField(id, label, placeholder, hint) {
+    return '<div class="field"><div class="label">' + esc(label) + '</div>' +
+      '<div class="combo" id="' + id + '" data-req="' + esc(label) + '" data-kind="combo">' +
+        '<input type="text" class="combo-input" autocomplete="off" placeholder="' + esc(placeholder) + '" aria-label="' + esc(label) + '">' +
+        '<input type="hidden" class="combo-value">' +
+        '<div class="combo-list" hidden></div>' +
+      '</div>' + (hint ? '<div class="hint">' + esc(hint) + '</div>' : '') + '</div>';
+  }
+
+  // Список з пошуком за входженням. items: [{ value, label, hint }]
+  function initCombo(id, items, onChange) {
+    const root = $('#' + id);
+    if (!root) return;
+    const inp = root.querySelector('.combo-input');
+    const hidden = root.querySelector('.combo-value');
+    const list = root.querySelector('.combo-list');
+
+    const show = () => {
+      const q = inp.value.trim().toLowerCase();
+      const found = items
+        .map((it, k) => ({ it: it, k: k }))
+        .filter(x => (x.it.label + ' ' + (x.it.hint || '')).toLowerCase().indexOf(q) !== -1)
+        .slice(0, 80);
+      list.innerHTML = found.length
+        ? found.map(x => '<button type="button" class="combo-opt" data-k="' + x.k + '">' + esc(x.it.label) +
+            (x.it.hint ? ' <span class="muted">' + esc(x.it.hint) + '</span>' : '') + '</button>').join('')
+        : '<div class="combo-empty muted">Нічого не знайдено</div>';
+      list.hidden = false;
+    };
+    const pick = k => {
+      const it = items[k];
+      hidden.value = it.value;
+      inp.value = it.label;
+      list.hidden = true;
+      if (onChange) onChange(it.value);
+    };
+
+    inp.addEventListener('focus', show);
+    inp.addEventListener('input', () => { hidden.value = ''; show(); if (onChange) onChange(''); });
+    inp.addEventListener('blur', () => setTimeout(() => {
+      list.hidden = true;
+      if (!hidden.value) inp.value = '';   // текст без вибору зі списку не зберігається
+    }, 150));
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Escape') list.hidden = true;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const first = list.querySelector('.combo-opt');
+        if (first) pick(Number(first.dataset.k));
+      }
+    });
+    list.addEventListener('mousedown', e => {
+      const b = e.target.closest('.combo-opt');
+      if (!b) return;
+      e.preventDefault();
+      pick(Number(b.dataset.k));
+    });
+  }
+
+  const comboValue = id => { const el = $('#' + id + ' .combo-value'); return el ? el.value : ''; };
+  const val = name => { const el = document.querySelector('input[name="' + name + '"]:checked'); return el ? el.value : ''; };
+  const v = sel => { const el = $(sel); return el ? el.value.trim() : ''; };
+
+  const plainItems = list => list.map(x => ({ value: x, label: x })).sort(byName);
+  const positionItems = () => plainItems(F.positions).concat([{ value: OTHER, label: 'Інша посада', hint: 'ввести вручну' }]);
+
+  // --- розмітка форми ---
+
+  function drawRequestForm() {
+    const c = F.choices;
+    const singleUnit = F.units.length === 1;
+
+    view().innerHTML =
+      '<h1>Нова заявка</h1>' +
+      '<p class="lead">Оберіть, що відбувається з працівником. Форма покаже лише потрібні питання.</p>' +
+
+      '<section class="panel">' +
+        radios('type', [
+          { v: 'new', l: c.type.new, d: 'Людина пройшла стажування і виходить на роботу' },
+          { v: 'exit', l: c.type.exit, d: 'Людина припиняє працювати в компанії' },
+          { v: 'change', l: c.type.change, d: 'Переоформлення, офіційне звільнення або перевід' }
+        ], 'Що відбувається') +
+      '</section>' +
+
+      // Новий співробітник
+      '<section class="panel" id="s-new" hidden><h2>Новий співробітник</h2>' +
+        '<div class="grid2">' + input('rSurname', 'Прізвище', 'text') + input('rName', 'Ім\'я (повне, як у паспорті)', 'text') + '</div>' +
+        (singleUnit
+          ? '<div class="field"><div class="label">Підрозділ</div>' + esc(F.units[0]) + '</div>'
+          : comboField('cUnit', 'Підрозділ', 'Почніть вводити назву підрозділу')) +
+        comboField('cPosition', 'Посада', 'Почніть вводити назву посади') +
+        '<div id="s-posother" hidden>' + input('rPositionOther', 'Назва посади', 'text') + '</div>' +
+        input('rFirstDay', 'Перший робочий день', 'date', { hint: 'Справжній перший день після стажування. Від нього рахуються відпустки.' }) +
+        select('rChannel', 'Як знайшли працівника', F.channels) +
+        '<div id="s-referral" hidden>' +
+          comboField('cReferrer', 'Хто порекомендував', 'Почніть вводити прізвище', 'Працівник компанії, який дав рекомендацію') +
+        '</div>' +
+        radios('decision', mapOptions(c.decision), 'Оформлення') +
+        '<div id="s-noreason" hidden>' + input('rNoReason', 'Чому не оформлюємо', 'text') + '</div>' +
+      '</section>' +
+
+      // Існуючий працівник
+      '<section class="panel" id="s-employee" hidden><h2>Працівник</h2>' +
+        (F.employees.length
+          ? comboField('cEmployee', 'Працівник', 'Почніть вводити прізвище')
+          : '<p class="error">У ваших підрозділах немає активних працівників. Зверніться до відділу кадрів.</p>') +
+      '</section>' +
+
+      // Вибуття
+      '<section class="panel" id="s-exit" hidden><h2>Вибуття</h2>' +
+        input('rLastDay', 'Останній робочий день', 'date') +
+        select('rExitReason', 'Справжня причина вибуття', F.exitReasons) +
+        radios('initiator', listOptions(c.initiator), 'Хто ініціатор') +
+        radios('source', listOptions(c.source), 'Звідки відома причина') +
+        input('rReasonComment', 'Коментар до причини', 'text', { optional: true }) +
+        radios('wasOfficial', mapOptions(c.wasOfficial), 'Чи був працівник оформлений офіційно') +
+      '</section>' +
+
+      // Зміна
+      '<section class="panel" id="s-change" hidden><h2>Що змінюється</h2>' +
+        radios('subtype', mapOptions(c.subtype), 'Тип зміни') +
+        input('rChangeDate', 'Дата змін', 'date', { hint: 'З якої дати діє нове оформлення або перевід' }) +
+        '<div id="s-move" hidden>' +
+          comboField('cNewUnit', 'Новий підрозділ', 'Почніть вводити назву підрозділу') +
+          comboField('cNewPosition', 'Нова посада', 'Почніть вводити назву посади') +
+          '<div id="s-newposother" hidden>' + input('rNewPositionOther', 'Назва нової посади', 'text') + '</div>' +
+          radios('changesFormalization', mapOptions(c.yesNo), 'Чи змінюється офіційне оформлення') +
+        '</div>' +
+      '</section>' +
+
+      // Офіційне звільнення
+      '<section class="panel" id="s-official" hidden><h2>Офіційне звільнення</h2>' +
+        radios('officialBasis', listOptions(c.officialBasis), 'Підстава') +
+        '<div id="s-appdate" hidden>' + input('rAppDate', 'Дата заяви', 'date', { optional: true }) + '</div>' +
+      '</section>' +
+
+      // Документи
+      '<section class="panel" id="s-docs" hidden><h2>Документи</h2>' +
+        '<div class="field"><label class="check" data-req="Пакет документів" data-kind="check"><input type="checkbox" id="rDocs"> Я перевірив(-ла), що у працівника повний пакет документів</label></div>' +
+        radios('med', listOptions(c.med), 'Медогляд') +
+      '</section>' +
+
+      // Візит
+      '<section class="panel" id="s-visit" hidden><h2>Візит до відділу кадрів</h2>' +
+        '<div class="grid2">' +
+          '<div class="field"><label for="rVisitDate">Дата</label><input type="date" id="rVisitDate" min="' + F.today + '"></div>' +
+          '<div class="field"><label for="rVisitHour">Час</label><select id="rVisitHour"><option value="">Спершу оберіть дату</option></select></div>' +
+        '</div>' +
+        '<div class="status-box" id="visitStatus"></div>' +
+      '</section>' +
+
+      // Примітка
+      '<section class="panel" id="s-note" hidden>' +
+        input('rHrNote', 'Примітка для відділу кадрів', 'text', { optional: true }) +
+        '<p class="muted" id="summary"></p>' +
+      '</section>' +
+
+      // Відправка — поза блоками питань
+      '<div class="submit-bar" id="s-final" hidden>' +
+        '<button class="btn primary" id="rSubmit">Подати заявку</button>' +
+        '<div class="form-error" id="formError" hidden></div>' +
+      '</div>';
+
+    if (!singleUnit) initCombo('cUnit', plainItems(F.units), applyRules);
+    initCombo('cPosition', positionItems(), applyRules);
+    initCombo('cReferrer', F.referrers.map(r => ({ value: r.pid, label: r.name, hint: r.unit })).sort(byName), applyRules);
+    initCombo('cEmployee', F.employees.map(e => ({ value: e.fid, label: e.name, hint: [e.position, e.unit].filter(Boolean).join(', ') })), applyRules);
+    initCombo('cNewUnit', plainItems(F.allUnits), applyRules);
+    initCombo('cNewPosition', positionItems(), applyRules);
+
+    view().onchange = applyRules;
+    $('#rVisitDate').addEventListener('change', loadSlots);
+    $('#rSubmit').onclick = e => withBusy(e.target, submitRequest);
+    applyRules();
+  }
+
+  // --- які розділи показувати ---
+
+  function rules() {
+    const t = val('type'), dec = val('decision'), was = val('wasOfficial');
+    const sub = val('subtype'), chg = val('changesFormalization'), basis = val('officialBasis');
+    const isNew = t === 'new', isExit = t === 'exit', isChange = t === 'change';
+    const moveWithFormal = isChange && sub === 'move' && chg === 'yes';
+    const official = (isExit && was !== '' && was !== 'no') || (isChange && sub === 'unformalize');
+    const docs = (isNew && dec === 'hire') || (isChange && (sub === 'entity' || sub === 'formalize' || moveWithFormal));
+    const visit = (isNew && dec === 'hire') || official || (isChange && (sub === 'entity' || sub === 'formalize' || moveWithFormal));
+
+    return {
+      's-new': isNew,
+      's-posother': isNew && comboValue('cPosition') === OTHER,
+      's-referral': isNew && v('#rChannel').toLowerCase().indexOf('реферал') !== -1,
+      's-noreason': isNew && dec === 'no_other',
+      's-employee': isExit || isChange,
+      's-exit': isExit,
+      's-change': isChange,
+      's-move': isChange && sub === 'move',
+      's-newposother': isChange && sub === 'move' && comboValue('cNewPosition') === OTHER,
+      's-official': official,
+      's-appdate': official && basis === 'За власним бажанням',
+      's-docs': docs,
+      's-visit': visit,
+      's-note': t !== '',
+      's-final': t !== ''
+    };
+  }
+
+  function applyRules() {
+    const r = rules();
+    Object.keys(r).forEach(id => { const el = document.getElementById(id); if (el) el.hidden = !r[id]; });
+    renderVisitStatus();
+
+    const lines = [];
+    if (r['s-visit']) lines.push('Подія з’явиться в календарі відділу кадрів, запрошення прийде і вам.');
+    else if (r['s-final']) lines.push('Візит до відділу кадрів не потрібен: відділ кадрів отримає заявку поштою.');
+    if (val('type') === 'exit') lines.push('Бухгалтер отримає повідомлення про розрахунок.');
+    const sm = $('#summary');
+    if (sm) sm.textContent = lines.join(' ');
+  }
+
+  // --- дата і час візиту: результат перевірки завжди в одному місці ---
+
+  function fmtUa(iso) { return iso ? iso.split('-').reverse().join('.') : ''; }
+
+  // Повертає { state: 'none' | 'ok' | 'warn' | 'err', text }
+  function visitCheck() {
+    const date = v('#rVisitDate');
+    const hour = v('#rVisitHour');
+    if (!date) return { state: 'none', text: 'Оберіть дату візиту — покажемо, які години вільні.' };
+    if (date < F.today) return { state: 'err', text: 'Дата візиту не може бути в минулому.' };
+    const wd = new Date(date + 'T12:00:00').getDay();
+    if (wd === 0 || wd === 6) return { state: 'err', text: 'Це вихідний. Візит можливий лише в робочий день.' };
+    if (val('type') === 'exit' && v('#rLastDay') && date > v('#rLastDay')) {
+      return { state: 'err', text: 'Візит має бути не пізніше останнього робочого дня (' + fmtUa(v('#rLastDay')) + ').' };
+    }
+    if (!slotState || slotState.date !== date) return { state: 'none', text: 'Перевіряю зайнятість…' };
+    if (!hour) return { state: 'none', text: 'Оберіть час.' };
+    const busy = slotState.busy[hour] || 0;
+    if (busy) return { state: 'warn', text: 'Цей час уже зайнятий' + (busy > 1 ? ' (' + busy + ' записи)' : '') + '. Його можна залишити, якщо ви домовились з відділом кадрів.' };
+    return { state: 'ok', text: 'Час вільний: ' + fmtUa(date) + ', ' + String(hour).padStart(2, '0') + ':00.' };
+  }
+
+  function renderVisitStatus() {
+    const box = $('#visitStatus');
+    if (!box) return;
+    const ackWasChecked = $('#rBusyAck') && $('#rBusyAck').checked;
+    const r = visitCheck();
+    box.className = 'status-box ' + r.state;
+    box.innerHTML = esc(r.text) + (r.state === 'warn'
+      ? '<label class="check"><input type="checkbox" id="rBusyAck"' + (ackWasChecked ? ' checked' : '') + '> Так, я домовився(-лась) з відділом кадрів</label>'
+      : '');
+  }
+
+  async function loadSlots() {
+    const date = v('#rVisitDate');
+    const sel = $('#rVisitHour');
+    const keep = sel.value;
+    slotState = null;
+    if (!date) { sel.innerHTML = '<option value="">Спершу оберіть дату</option>'; applyRules(); return; }
+    applyRules();
+
+    try {
+      const r = await api('form.slots', { date: date });
+      if (v('#rVisitDate') !== date) return; // дату вже змінили
+      slotState = { date: date, weekend: r.weekend, busy: {} };
+      r.slots.forEach(s => { slotState.busy[String(s.hour)] = s.busy; });
+      sel.innerHTML = '<option value="">Оберіть час</option>' + r.slots.map(s =>
+        '<option value="' + s.hour + '"' + (String(s.hour) === keep ? ' selected' : '') + '>' +
+          String(s.hour).padStart(2, '0') + ':00 — ' + (s.busy ? 'зайнято' : 'вільно') + '</option>').join('');
+    } catch (e) {
+      slotState = { date: date, weekend: false, busy: {} };
+      sel.innerHTML = '<option value="">Оберіть час</option>' +
+        F.visitHours.map(h => '<option value="' + h + '">' + String(h).padStart(2, '0') + ':00</option>').join('');
+      toast('Не вдалося перевірити зайнятість: ' + e.error, true);
+    }
+    applyRules();
+  }
+
+  // --- відправка ---
+
+  function validateRequest() {
+    const missing = [];
+    view().querySelectorAll('[data-req]').forEach(el => {
+      if (el.closest('[hidden]')) return;
+      let ok;
+      if (el.dataset.kind === 'radio') ok = val(el.dataset.name) !== '';
+      else if (el.dataset.kind === 'combo') ok = comboValue(el.id) !== '';
+      else if (el.dataset.kind === 'check') ok = el.querySelector('input').checked;
+      else ok = String(el.value || '').trim() !== '';
+      (el.closest('.field') || el.parentElement).classList.toggle('invalid', !ok);
+      if (!ok) missing.push(el.dataset.req);
+    });
+
+    const errors = [];
+    if (missing.length) errors.push('Заповніть: ' + missing.join(', ') + '.');
+
+    if (!$('#s-visit').hidden) {
+      const r = visitCheck();
+      const ack = $('#rBusyAck');
+      const visitOk = r.state === 'ok' || (r.state === 'warn' && ack && ack.checked);
+      $('#s-visit').classList.toggle('invalid-block', !visitOk);
+      if (!visitOk) errors.push('Некоректно вказані дата і час візиту.');
+    }
+    return errors;
+  }
+
+  function collectRequest() {
+    const pos = comboValue('cPosition');
+    const newPos = comboValue('cNewPosition');
+    return {
+      type: val('type'),
+      surname: v('#rSurname'), name: v('#rName'),
+      unit: F.units.length === 1 ? F.units[0] : comboValue('cUnit'),
+      position: pos === OTHER ? v('#rPositionOther') : pos,
+      firstDay: v('#rFirstDay'), channel: v('#rChannel'), referrer: comboValue('cReferrer'),
+      decision: val('decision'), noReason: v('#rNoReason'),
+      fid: comboValue('cEmployee'),
+      lastDay: v('#rLastDay'), exitReason: v('#rExitReason'),
+      initiator: val('initiator'), source: val('source'), reasonComment: v('#rReasonComment'),
+      wasOfficial: val('wasOfficial'), officialBasis: val('officialBasis'), appDate: v('#rAppDate'),
+      subtype: val('subtype'), changeDate: v('#rChangeDate'),
+      newUnit: comboValue('cNewUnit'), newPosition: newPos === OTHER ? v('#rNewPositionOther') : newPos,
+      changesFormalization: val('changesFormalization'),
+      docs: $('#rDocs').checked, med: val('med'),
+      visitDate: v('#rVisitDate'), visitHour: v('#rVisitHour'),
+      hrNote: v('#rHrNote')
+    };
+  }
+
+  async function submitRequest() {
+    const box = $('#formError');
+    const errors = validateRequest();
+    if (errors.length) {
+      box.textContent = errors.join(' ');
+      box.hidden = false;
+      return;
+    }
+    box.hidden = true;
+
+    let r;
+    try {
+      r = await api('form.submit', collectRequest());
+    } catch (e) {
+      box.textContent = e.error || String(e);
+      box.hidden = false;
+      return;
+    }
+
+    view().innerHTML =
+      '<h1>Заявку подано</h1>' +
+      '<div class="panel">' +
+        '<div class="field"><div class="label">Номер заявки</div>' + esc(r.id) + '</div>' +
+        '<div class="field"><div class="label">Подія</div>' + esc(r.eventLabel) + '</div>' +
+        (r.visit ? '<div class="field"><div class="label">Візит до відділу кадрів</div>' + esc(r.visit) + '. Запрошення надіслано в календар.</div>' : '') +
+        (r.warning ? '<p class="error">' + esc(r.warning) + '</p>' : '') +
+      '</div>' +
+      '<div class="form-actions">' +
+        '<button class="btn primary" id="again">Подати ще одну заявку</button>' +
+        '<button class="btn" id="toMine">Мої заявки</button>' +
+      '</div>';
+    $('#again').onclick = () => renderRequest();
+    $('#toMine').onclick = () => go('mine');
+    toast('Заявку ' + r.id + ' подано');
+  }
+
+  // ---------- Мої заявки ----------
+
+  let myRequests = [];
+
+  function statusTag(s) {
+    const cls = { 'Нова': 'new', 'Виконана': 'done', 'Скасована': 'off' }[s] || '';
+    return '<span class="tag ' + cls + '">' + esc(s || '—') + '</span>';
+  }
+
+  async function renderMine() {
+    view().innerHTML = '<h1>Мої заявки</h1><p class="muted">Завантаження…</p>';
+    try {
+      myRequests = await api('requests.mine');
+      drawMine();
+    } catch (e) {
+      view().innerHTML = '<h1>Мої заявки</h1><p class="error">' + esc(e.error) + '</p>';
+    }
+  }
+
+  function drawMine() {
+    view().innerHTML =
+      '<h1>Мої заявки</h1>' +
+      '<p class="lead">Заявки, які ви подали. Натисніть на рядок, щоб переглянути деталі.</p>' +
+      '<div id="mineDetail"></div>' +
+      (myRequests.length
+        ? '<div class="table-wrap"><table>' +
+            '<thead><tr><th>Номер</th><th>Подано</th><th>Подія</th><th>Працівник</th><th>Візит</th><th>Статус</th></tr></thead><tbody>' +
+            myRequests.map((r, i) =>
+              '<tr class="clickable" data-i="' + i + '">' +
+                '<td>' + esc(r['ID заявки']) + '</td><td>' + esc(r['Отримано'] || '') + '</td>' +
+                '<td>' + esc(r['Подія']) + '</td>' +
+                '<td>' + esc((r['Прізвище'] || '') + ' ' + (r["Ім'я"] || '')) + '<div class="muted">' + esc(r['Підрозділ'] || '') + '</div></td>' +
+                '<td>' + esc(r['Візит'] || '—') + '</td><td>' + statusTag(r['Статус']) + '</td>' +
+              '</tr>').join('') +
+          '</tbody></table></div>'
+        : '<div class="panel"><p>Ви ще не подавали заявок.</p><button class="btn primary" id="mineNew">Подати заявку</button></div>');
+
+    view().querySelectorAll('[data-i]').forEach(tr => tr.onclick = () => showMineDetail(myRequests[Number(tr.dataset.i)]));
+    const nb = $('#mineNew');
+    if (nb) nb.onclick = () => go('request');
+  }
+
+  // Порядок і групування полів у деталях заявки (порядок ключів з сервера не гарантований)
+  const DETAIL_GROUPS = [
+    { title: 'Заявка', fields: ['Подія', 'Тип звернення', 'Підтип', 'Отримано'] },
+    { title: 'Працівник', fields: ['__name', 'Підрозділ', 'Посада', 'Перший робочий день', 'Канал залучення',
+        'Рекомендував', 'Причина неоформлення'] },
+    { title: 'Вибуття', fields: ['Останній робочий день', 'Реальна причина вибуття', 'Ініціатор', 'Джерело відповіді',
+        'Коментар до причини', 'Чи був оформлений', 'Офіційна підстава', 'Дата заяви'] },
+    { title: 'Зміна', fields: ['Дата змін', 'Новий підрозділ', 'Нова посада', 'Чи змінюється оформлення'] },
+    { title: 'Документи', fields: ['Документи', 'Медогляд'] },
+    { title: 'Візит до відділу кадрів', fields: ['Візит', 'Примітка для HR', 'Примітка HR'] },
+    { title: 'Обробка', fields: ['Автор (email)', 'Відповідальний HR', 'Проведено', 'Створені / закриті ID'] }
+  ];
+
+  function renderDetailBlocks(r) {
+    const value = k => k === '__name' ? ((r['Прізвище'] || '') + ' ' + (r["Ім'я"] || '')).trim() : r[k];
+    const label = k => k === '__name' ? 'Прізвище та ім\'я' : k;
+    return DETAIL_GROUPS.map(g => {
+      const rows = g.fields.filter(k => value(k)).map(k =>
+        '<dt>' + esc(label(k)) + '</dt><dd' + (k === 'Візит' ? ' class="highlight"' : '') + '>' + esc(value(k)) + '</dd>').join('');
+      return rows ? '<div class="detail-block"><h3>' + esc(g.title) + '</h3><dl class="details">' + rows + '</dl></div>' : '';
+    }).join('');
+  }
+
+  function showMineDetail(r) {
+    $('#mineDetail').innerHTML =
+      '<div class="panel">' +
+        '<h2>Заявка ' + esc(r['ID заявки']) + ' ' + statusTag(r['Статус']) + '</h2>' +
+        renderDetailBlocks(r) +
+        '<div class="form-actions"><button class="btn" id="mineClose">Згорнути</button></div>' +
+      '</div>';
+    $('#mineClose').onclick = () => { $('#mineDetail').innerHTML = ''; };
+    $('#mineDetail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---------- Працівники ----------
+
+  let staff = [];
+
+  async function renderEmployees() {
+    view().innerHTML = '<h1>Працівники</h1><p class="muted">Завантаження…</p>';
+    try {
+      staff = await api('employees.list');
+      drawEmployees();
+    } catch (e) {
+      view().innerHTML = '<h1>Працівники</h1><p class="error">' + esc(e.error) + '</p>';
+    }
+  }
+
+  function drawEmployees() {
+    const units = Array.from(new Set(staff.map(s => s.unit).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'uk'));
+    const entities = Array.from(new Set([].concat.apply([], staff.map(s => s.official.map(o => o.entity))).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, 'uk'));
+    const opt = (list, all) => '<option value="">' + all + '</option>' + list.map(x => '<option>' + esc(x) + '</option>').join('');
+
+    view().innerHTML =
+      '<h1>Працівники</h1>' +
+      '<p class="lead">' + (state.boot.me.units.indexOf('*') !== -1
+        ? 'Усі працівники з обліку.' : 'Працівники ваших підрозділів: ' + esc(state.boot.me.units.join(', ')) + '.') +
+        ' Оформлення показує активні офіційні записи.</p>' +
+      '<div class="toolbar filters">' +
+        '<input type="search" id="eSearch" class="grow" placeholder="Пошук за прізвищем або посадою">' +
+        '<select id="eUnit">' + opt(units, 'Усі підрозділи') + '</select>' +
+        '<select id="eEntity">' + opt(entities, 'Усі юрособи') + '</select>' +
+        '<select id="eFormal"><option value="">Оформлені й неоформлені</option><option value="yes">Лише оформлені</option><option value="no">Лише неоформлені</option></select>' +
+        '<label class="check"><input type="checkbox" id="eInactive"> Показати вибулих</label>' +
+      '</div>' +
+      '<p class="muted" id="eCount"></p>' +
+      '<div class="table-wrap"><table>' +
+        '<thead><tr><th>Працівник</th><th>Підрозділ</th><th>Посада</th><th>У компанії з</th><th>Оформлення</th><th>Табельний</th></tr></thead>' +
+        '<tbody id="eBody"></tbody></table></div>';
+
+    ['eSearch', 'eUnit', 'eEntity', 'eFormal', 'eInactive'].forEach(id => {
+      $('#' + id).addEventListener(id === 'eSearch' ? 'input' : 'change', filterEmployees);
+    });
+    filterEmployees();
+  }
+
+  function filterEmployees() {
+    const q = v('#eSearch').toLowerCase();
+    const unit = v('#eUnit'), entity = v('#eEntity'), formal = v('#eFormal');
+    const showInactive = $('#eInactive').checked;
+
+    const list = staff.filter(s =>
+      (showInactive || s.active) &&
+      (!unit || s.unit === unit) &&
+      (!entity || s.official.some(o => o.entity === entity)) &&
+      (!formal || (formal === 'yes' ? s.official.length > 0 : s.official.length === 0)) &&
+      (!q || (s.name + ' ' + s.position).toLowerCase().indexOf(q) !== -1));
+
+    $('#eCount').textContent = 'Знайдено: ' + list.length;
+    $('#eBody').innerHTML = list.map(s =>
+      '<tr class="' + (s.active ? '' : 'inactive') + '">' +
+        '<td>' + esc(s.name) + (s.active ? '' : ' <span class="tag off">вибув</span>') + '</td>' +
+        '<td>' + esc(s.unit) + '</td><td>' + esc(s.position) +
+          (s.start && s.start !== s.since ? '<div class="muted">на посаді з ' + esc(s.start) + '</div>' : '') + '</td>' +
+        '<td>' + (s.since ? esc(s.since) : '<span class="muted">—</span>') + '</td>' +
+        '<td>' + (s.official.length
+          ? s.official.map(o => esc(o.entity) + (o.since ? ' <span class="muted">з ' + esc(o.since) + '</span>' : '') +
+              (o.position ? '<div class="muted">' + esc(o.position) + '</div>' : '')).join('<br>')
+          : '<span class="muted">не оформлений</span>') + '</td>' +
+        '<td>' + esc(s.official.map(o => o.tab).filter(Boolean).join(', ')) + '</td>' +
+      '</tr>').join('') ||
+      '<tr><td colspan="6" class="muted">Нікого не знайдено. Змініть фільтри.</td></tr>';
+  }
+
+  // ---------- Безпека ----------
+
+  async function renderSecurity() {
+    view().innerHTML = '<h1>Безпека</h1><p class="muted">Завантаження…</p>';
+    try {
+      drawSecurity(await api('security.state'));
+    } catch (e) {
+      if (!e.gate) view().innerHTML = '<h1>Безпека</h1><p class="error">' + esc(e.error) + '</p>';
+    }
+  }
+
+  function drawSecurity(st) {
+    const me = state.boot.me.email;
+    view().innerHTML =
+      '<h1>Безпека</h1>' +
+      '<p class="lead">Керування входами в портал. Після завершення сесії людина бачить сторінку входу і має знову ввести код з пошти.</p>' +
+
+      '<div class="panel">' +
+        '<h2>Стан порталу: ' + (st.locked ? '<span class="tag off">закритий</span>' : '<span class="tag done">відкритий</span>') + '</h2>' +
+        (st.locked
+          ? '<p>Ніхто, крім вас, не може увійти. Користувачі бачать повідомлення «Портал тимчасово закритий».</p>' +
+            '<button class="btn primary" id="lockToggle">Відкрити портал</button>'
+          : '<p>Закриття порталу одразу завершує всі сесії (крім вашої) і забороняє нові входи, поки ви не відкриєте його знову.</p>' +
+            '<button class="btn danger" id="lockToggle">Закрити портал для всіх</button>') +
+      '</div>' +
+
+      '<div class="panel">' +
+        '<h2>Активні сесії</h2>' +
+        '<p class="muted">Тривалість сесії: ' + st.sessionHours + ' год (налаштування SESSION_HOURS в аркуші Config).</p>' +
+        (st.sessions.length
+          ? '<div class="table-wrap"><table><thead><tr><th>Email</th><th>Вхід</th><th>Діє до</th><th></th></tr></thead><tbody>' +
+              st.sessions.map(s => '<tr><td>' + esc(s.email) + (s.email === me ? ' <span class="muted">(ви)</span>' : '') +
+                (s.devices > 1 ? '<div class="muted">пристроїв: ' + s.devices + '</div>' : '') + '</td>' +
+                '<td>' + esc(s.start) + '</td><td>' + esc(s.exp) + '</td>' +
+                '<td class="actions">' + (s.email === me ? '' : '<button class="btn link" data-end="' + esc(s.email) + '">Завершити</button>') + '</td></tr>').join('') +
+            '</tbody></table></div>'
+          : '<p>Активних сесій немає.</p>') +
+        '<div class="form-actions" style="margin-top:16px"><button class="btn danger" id="logoutAll">Завершити всі сесії</button></div>' +
+        '<p class="hint">Ваша сесія залишиться. Якщо пристрій втрачено, попросіть людину також вийти з Google-акаунта на ньому.</p>' +
+      '</div>';
+
+    $('#lockToggle').onclick = e => confirmTwice(e.target, async () => {
+      drawSecurity(await api('security.setLock', { locked: !st.locked }));
+      toast(st.locked ? 'Портал відкрито' : 'Портал закрито, усі сесії завершено');
+    });
+    $('#logoutAll').onclick = e => confirmTwice(e.target, async () => {
+      drawSecurity(await api('security.logoutAll'));
+      toast('Усі сесії завершено');
+    });
+    view().querySelectorAll('[data-end]').forEach(b => b.onclick = () => confirmTwice(b, async () => {
+      drawSecurity(await api('security.logoutUser', { email: b.dataset.end }));
+      toast('Сесію завершено');
+    }));
+  }
+
+  // ---------- Черга відділу кадрів ----------
+
+  let hrQueue = [];
+  let hrMeta = { me: '', today: '', tomorrow: '' };
+
+  async function loadHrQueue() {
+    const r = await api('hr.queue');
+    hrQueue = r.items;
+    hrMeta = { me: r.me, today: r.today, tomorrow: r.tomorrow };
+  }
+
+  const EFFECTS = {
+    '1': 'Буде створено картку працівника (або використано обрану), фактичну роботу з першого робочого дня і офіційне оформлення.',
+    '2': 'Буде створено картку працівника і фактичну роботу без офіційного оформлення.',
+    '3': 'Буде закрито фактичну роботу (останнім робочим днем) і офіційне оформлення (датою наказу).',
+    '4': 'Буде закрито фактичну роботу останнім робочим днем.',
+    '5': 'Буде закрито поточне офіційне оформлення і відкрито нове. Фактична робота не змінюється.',
+    '6': 'Буде відкрито офіційне оформлення. Фактична робота не змінюється.',
+    '7': 'Буде закрито офіційне оформлення. Працівник продовжує працювати неофіційно.',
+    '8': 'Буде закрито поточну фактичну роботу і відкрито нову з дати змін: новий підрозділ і посада.',
+    '8+5': 'Буде закрито поточну фактичну роботу і відкрито нову з дати змін, а також переоформлено офіційно.'
+  };
+
+  async function renderHrDesk() {
+    view().innerHTML = '<h1>Черга відділу кадрів</h1><p class="muted">Завантаження…</p>';
+    try {
+      await loadHrQueue();
+      drawHrDesk();
+    } catch (e) {
+      if (!e.gate) view().innerHTML = '<h1>Черга відділу кадрів</h1><p class="error">' + esc(e.error) + '</p>';
+    }
+  }
+
+  function drawHrDesk() {
+    const events = Array.from(new Set(hrQueue.map(q => q.eventLabel))).sort((a, b) => a.localeCompare(b, 'uk'));
+    view().innerHTML =
+      '<h1>Черга відділу кадрів</h1>' +
+      '<p class="lead">Заявки керівників. Відкрийте заявку, внесіть офіційні дані і проведіть її: облік працівників оновиться автоматично.</p>' +
+      '<div id="hrDetail"></div>' +
+      '<div class="toolbar filters">' +
+        '<input type="search" id="hSearch" class="grow" placeholder="Пошук за прізвищем або номером">' +
+        '<select id="hStatus"><option value="Нова">Нові</option><option value="Виконана">Виконані</option><option value="Скасована">Скасовані</option><option value="">Усі статуси</option></select>' +
+        '<select id="hEvent"><option value="">Усі події</option>' + events.map(e => '<option>' + esc(e) + '</option>').join('') + '</select>' +
+        '<select id="hSort"><option value="visit">Спершу найближчі візити</option><option value="received">Спершу нові заявки</option></select>' +
+      '</div>' +
+      '<div class="toolbar filters">' +
+        '<select id="hResp"><option value="">Усі відповідальні</option><option value="mine">Мої заявки</option><option value="none">Не розподілені</option>' +
+          Array.from(new Set(hrQueue.map(q => q.responsible).filter(r => r && r !== hrMeta.me))).sort()
+            .map(r => '<option value="' + esc(r) + '">' + esc(r) + '</option>').join('') +
+        '</select>' +
+        '<select id="hDay"><option value="">Візит: будь-коли</option><option value="today">Візит сьогодні</option><option value="tomorrow">Візит завтра</option></select>' +
+        '<select id="hOrg"><option value="">Усі організації</option><option value="ТОВ">Лише ТОВ</option><option value="ФОП">Лише ФОП</option><option value="none">Юрособа не визначена</option></select>' +
+      '</div>' +
+      '<p class="muted" id="hCount"></p>' +
+      '<div class="table-wrap"><table>' +
+        '<thead><tr><th>Номер</th><th>Подано</th><th>Подія</th><th>Працівник</th><th>Візит</th><th>Відповідальний</th><th>Статус</th></tr></thead>' +
+        '<tbody id="hBody"></tbody></table></div>';
+
+    ['hSearch', 'hStatus', 'hEvent', 'hSort', 'hResp', 'hDay', 'hOrg'].forEach(id =>
+      $('#' + id).addEventListener(id === 'hSearch' ? 'input' : 'change', filterHr));
+    filterHr();
+  }
+
+  function filterHr() {
+    const q = v('#hSearch').toLowerCase(), status = v('#hStatus'), event = v('#hEvent'), sort = v('#hSort');
+    const resp = v('#hResp'), day = v('#hDay'), org = v('#hOrg');
+    const list = hrQueue.filter(r =>
+      (!status || r.status === status) && (!event || r.eventLabel === event) &&
+      (!resp || (resp === 'mine' ? r.responsible === hrMeta.me : resp === 'none' ? !r.responsible : r.responsible === resp)) &&
+      (!day || r.visitDay === (day === 'today' ? hrMeta.today : hrMeta.tomorrow)) &&
+      (!org || (org === 'none' ? !r.entity : r.entityType === org)) &&
+      (!q || (r.name + ' ' + r.id + ' ' + r.entity).toLowerCase().indexOf(q) !== -1));
+    if (sort === 'visit') {
+      list.sort((a, b) => (a.visitSort || Infinity) - (b.visitSort || Infinity));
+    }
+
+    $('#hCount').textContent = 'Заявок: ' + list.length;
+    $('#hBody').innerHTML = list.map(r =>
+      '<tr class="clickable" data-id="' + esc(r.id) + '">' +
+        '<td>' + esc(r.id) + '</td><td>' + esc(r.received) + '</td><td>' + esc(r.eventLabel) + '</td>' +
+        '<td>' + esc(r.name) + '<div class="muted">' + esc(r.unit) + '</div></td>' +
+        '<td>' + esc(r.visit || '—') + '</td>' +
+        '<td>' + (r.responsible ? esc(r.responsible === hrMeta.me ? 'я' : r.responsible) : '<span class="muted">не призначено</span>') + '</td>' +
+        '<td>' + statusTag(r.status) + (r.entity ? '<div class="muted">' + esc(r.entity) + '</div>' : '') + '</td>' +
+      '</tr>').join('') ||
+      '<tr><td colspan="7" class="muted">Заявок немає. Змініть фільтри.</td></tr>';
+    view().querySelectorAll('#hBody [data-id]').forEach(tr => tr.onclick = () => openHrRequest(tr.dataset.id));
+  }
+
+  async function openHrRequest(id) {
+    $('#hrDetail').innerHTML = '<div class="panel"><p class="muted">Завантаження заявки…</p></div>';
+    $('#hrDetail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    try {
+      drawHrRequest(await api('hr.request', { id: id }));
+    } catch (e) {
+      if (!e.gate) $('#hrDetail').innerHTML = '<div class="panel"><p class="error">' + esc(e.error) + '</p></div>';
+    }
+  }
+
+  function drawHrRequest(d) {
+    const rule = d.rule;
+    const open = d.status === 'Нова';
+    const needOrderDate = rule.openOfficial || (rule.closeOfficial && d.officials.length > 0);
+    const hr = d.hr;
+    const field = (id, label, inner, hint) => '<div class="field"><label for="' + id + '">' + esc(label) + '</label>' + inner +
+      (hint ? '<div class="hint">' + esc(hint) + '</div>' : '') + '</div>';
+    const text = (id, key, type) => '<input type="' + (type || 'text') + '" id="' + id + '" value="' + esc(hr[key]) + '">';
+
+    let form = '';
+    if (open) {
+      form += '<div class="detail-block"><h3>Відповідальний HR</h3>' +
+        '<div class="inline-row">' +
+          '<select id="hAssignee"><option value="">— не призначено —</option>' +
+            d.assignees.map(a => '<option value="' + esc(a) + '"' + (a === d.responsible ? ' selected' : '') + '>' +
+              esc(a === d.me ? a + ' (я)' : a) + '</option>').join('') + '</select>' +
+          (d.responsible !== d.me ? '<button class="btn" id="hTakeMe">Взяти собі</button>' : '') +
+        '</div>' +
+        '<div class="hint">Відповідальний отримує лист, якщо заявку призначив хтось інший. Якщо відповідального немає, ним стане той, хто проведе або скасує заявку.</div>' +
+      '</div>' +
+      '<div class="detail-block"><h3>Дії відділу кадрів</h3>' +
+        '<p class="status-box">' + esc(EFFECTS[d.event] || '') + '</p>';
+
+      if (rule.person) {
+        form += field('hPerson', 'Картка працівника',
+          '<select id="hPerson"><option value="">Створити нову картку</option>' +
+            d.namesakes.map(n => '<option value="' + esc(n.pid) + '"' + (n.pid === hr['P-ID'] ? ' selected' : '') + '>' +
+              esc(n.name + ' (' + n.pid + ')' + (n.activeUnit ? ' — зараз працює: ' + n.activeUnit : ' — не працює')) + '</option>').join('') +
+          '</select>',
+          d.namesakes.length ? 'Знайдено людей з таким самим прізвищем та ім\'ям. Якщо це повторний прийом — оберіть існуючу картку.' : '');
+      }
+
+      if (rule.closeOfficial) {
+        form += d.officials.length
+          ? field('hCloseO', 'Офіційне оформлення, яке закривається',
+              '<select id="hCloseO">' + (d.officials.length > 1 ? '<option value="">Оберіть…</option>' : '') +
+                d.officials.map(o => '<option value="' + esc(o.oid) + '"' + (o.oid === hr['O-ID, що закривається'] ? ' selected' : '') + '>' +
+                  esc(o.oid + ': ' + o.entity + (o.position ? ', ' + o.position : '') + (o.tab ? ', таб. ' + o.tab : '')) + '</option>').join('') +
+              '</select>')
+          : (rule.closeOfficial === 'ifAny'
+              ? '<p class="muted">Активного офіційного оформлення немає: буде закрито лише фактичну роботу.</p>'
+              : '<p class="error">У працівника немає активного офіційного оформлення. Провести цю заявку неможливо — скасуйте її з поясненням.</p>');
+      }
+
+      if (needOrderDate) form += field('hOrderDate', 'Дата наказу', text('hOrderDate', 'Дата наказу', 'date'),
+        rule.openOfficial ? 'Офіційна дата прийому.' : 'Офіційна дата звільнення.');
+
+      if (rule.openOfficial) {
+        form += (d.entities.length
+            ? field('hEntity', 'Юрособа', '<select id="hEntity"><option value="">Оберіть…</option>' +
+                d.entities.map(e => '<option' + (e === hr['Юрособа'] ? ' selected' : '') + '>' + esc(e) + '</option>').join('') + '</select>')
+            : '<p class="error">Довідник юросіб порожній. Додайте юрособи в «Налаштування → Довідники».</p>') +
+          field('hOffPos', 'Офіційна посада', text('hOffPos', 'Офіційна посада'), 'Як у наказі. Може відрізнятись від управлінської.') +
+          '<div class="grid2">' +
+            field('hSalary', 'Офіційний оклад, грн', text('hSalary', 'Офіційний оклад', 'number')) +
+            field('hSchedule', 'Офіційний графік', text('hSchedule', 'Офіційний графік')) +
+          '</div>' +
+          '<p class="hint">Табельний номер тут не потрібен: після проведення бухгалтер отримає лист про нове оформлення, заведе працівника в 1С і внесе табельний у розділі «Бухгалтерія».</p>' +
+          '<div id="bankBlock" hidden><div class="detail-block"><h3>Реквізити для виплати ЗП</h3>' +
+            '<p class="hint">Вкажіть номер картки, IBAN або обидва. Реквізити не зберігаються в порталі — лише в таблиці карток для бухгалтера.</p>' +
+            field('hCard', 'Номер картки', '<input type="text" id="hCard" inputmode="numeric" autocomplete="off" placeholder="0000 0000 0000 0000" maxlength="19">') +
+            field('hIban', 'IBAN', '<input type="text" id="hIban" autocomplete="off" placeholder="UA00 0000 0000 0000 0000 0000 0000 0" maxlength="37">') +
+            field('hDoc', 'Документ про відкриття рахунку', '<input type="file" id="hDoc" accept="image/*,application/pdf">', 'Фото або скан (JPG, PNG, PDF), до 8 МБ.') +
+          '</div></div>';
+      }
+
+      if (d.hasVisit) {
+        form += '<div class="detail-block"><h3>Візит</h3>' +
+          '<p>' + esc(d.display['Візит'] || 'не призначено') + '</p>' +
+          '<div class="form-actions"><button class="btn" id="hRescheduleOpen">Перенести візит</button></div>' +
+          '<div id="rescheduleBox" hidden style="margin-top:16px">' +
+            '<div class="grid2">' +
+              field('hVisitDate', 'Нова дата', '<input type="date" id="hVisitDate" min="' + d.today + '" value="' + esc(d.visitDate) + '">') +
+              field('hVisitHour', 'Новий час', '<select id="hVisitHour"><option value="">…</option></select>') +
+            '</div>' +
+            field('hVisitComment', 'Коментар для керівника', '<input type="text" id="hVisitComment">', 'Керівник отримає лист з новим часом.') +
+            '<div class="form-actions"><button class="btn primary" id="hReschedule">Зберегти новий час</button>' +
+              '<button class="btn" id="hRescheduleCancel">Скасувати</button></div>' +
+          '</div>' +
+        '</div>';
+      }
+
+      form += field('hNote', 'Примітка HR', text('hNote', 'Примітка HR'), 'Обов\'язкова, якщо заявка скасовується.') +
+        '<div class="submit-bar">' +
+          '<button class="btn primary" id="hComplete">Виконати</button>' +
+          '<button class="btn" id="hSave">Зберегти чернетку</button>' +
+          '<button class="btn danger" id="hCancel">Скасувати заявку</button>' +
+          '<div class="form-error" id="hError" hidden></div>' +
+        '</div></div>';
+    }
+
+    $('#hrDetail').innerHTML =
+      '<div class="panel">' +
+        '<h2>Заявка ' + esc(d.id) + ' ' + statusTag(d.status) + '</h2>' +
+        (d.warnings && d.warnings.length
+          ? '<div class="status-box err"><b>Проведено, але потрібна ручна дія:</b><br>' + d.warnings.map(esc).join('<br>') + '</div>'
+          : '') +
+        renderDetailBlocks(d.display) +
+        form +
+        '<div class="form-actions"><button class="btn" id="hClose">Згорнути</button></div>' +
+      '</div>';
+
+    $('#hClose').onclick = () => { $('#hrDetail').innerHTML = ''; };
+    if (!open) return;
+
+    const collect = () => {
+      const out = { 'Примітка HR': v('#hNote') };
+      if (rule.person) out['P-ID'] = v('#hPerson');
+      if ($('#hCloseO')) out['O-ID, що закривається'] = v('#hCloseO');
+      if (needOrderDate) out['Дата наказу'] = v('#hOrderDate');
+      if (rule.openOfficial) {
+        out['Юрособа'] = v('#hEntity');
+        out['Офіційна посада'] = v('#hOffPos');
+        out['Офіційний оклад'] = v('#hSalary');
+        out['Офіційний графік'] = v('#hSchedule');
+      }
+      return out;
+    };
+    const fail = msg => { const b = $('#hError'); b.textContent = msg; b.hidden = !msg; };
+    const run = async (action, payload, okMsg) => {
+      fail('');
+      try {
+        const res = await api(action, typeof payload === 'function' ? await payload() : payload);
+        drawHrRequest(res);
+        toast(res.warnings && res.warnings.length ? 'Проведено з попередженнями — див. картку заявки' : okMsg, !!(res.warnings && res.warnings.length));
+        await loadHrQueue();
+        filterHr();
+      } catch (e) { if (!e.gate) fail(e.error); }
+    };
+
+    if (d.hasVisit) {
+      const loadHrSlots = async () => {
+        const date = v('#hVisitDate');
+        const sel = $('#hVisitHour');
+        const keep = sel.value || String(d.visitHour);
+        if (!date) { sel.innerHTML = '<option value="">…</option>'; return; }
+        try {
+          const r = await api('form.slots', { date: date });
+          sel.innerHTML = r.slots.map(sl => '<option value="' + sl.hour + '"' + (String(sl.hour) === keep ? ' selected' : '') + '>' +
+            String(sl.hour).padStart(2, '0') + ':00 — ' + (sl.busy ? 'зайнято' : 'вільно') + '</option>').join('');
+        } catch (e) {
+          if (!e.gate) sel.innerHTML = d.visitHours.map(h => '<option value="' + h + '">' + String(h).padStart(2, '0') + ':00</option>').join('');
+        }
+      };
+      $('#hVisitDate').addEventListener('change', loadHrSlots);
+      $('#hRescheduleOpen').onclick = () => {
+        $('#rescheduleBox').hidden = false;
+        $('#hRescheduleOpen').hidden = true;
+        loadHrSlots();
+      };
+      $('#hRescheduleCancel').onclick = () => {
+        $('#rescheduleBox').hidden = true;
+        $('#hRescheduleOpen').hidden = false;
+      };
+      $('#hReschedule').onclick = e => withBusy(e.target, () => run('hr.reschedule',
+        { id: d.id, date: v('#hVisitDate'), hour: v('#hVisitHour'), comment: v('#hVisitComment') }, 'Візит перенесено'));
+    }
+
+    $('#hAssignee').onchange = e => withBusy(e.target, () =>
+      run('hr.assign', { id: d.id, email: e.target.value }, e.target.value ? 'Відповідального призначено' : 'Призначення знято'));
+    if ($('#hTakeMe')) $('#hTakeMe').onclick = e => withBusy(e.target, () =>
+      run('hr.assign', { id: d.id, email: d.me }, 'Заявку взято собі'));
+
+    const bankBlock = $('#bankBlock');
+    const syncBank = () => { if (bankBlock) bankBlock.hidden = d.bankEntities.indexOf(v('#hEntity')) === -1; };
+    if ($('#hEntity')) $('#hEntity').addEventListener('change', syncBank);
+    syncBank();
+    if ($('#hIban')) $('#hIban').addEventListener('input', e => {
+      const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 29);
+      e.target.value = raw.replace(/(.{4})(?=.)/g, '$1 ');
+    });
+    if ($('#hCard')) $('#hCard').addEventListener('input', e => {
+      const digits = e.target.value.replace(/\D/g, '').slice(0, 16);
+      e.target.value = digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+    });
+
+    const collectBank = async () => {
+      if (!bankBlock || bankBlock.hidden) return null;
+      const file = $('#hDoc').files[0];
+      return { card: v('#hCard'), iban: v('#hIban'), doc: file ? await fileToPayload(file) : null };
+    };
+
+    $('#hComplete').onclick = e => withBusy(e.target, () =>
+      run('hr.complete', async () => ({ id: d.id, hr: collect(), bank: await collectBank() }), 'Заявку проведено'));
+    $('#hSave').onclick = e => withBusy(e.target, () => run('hr.save', { id: d.id, hr: collect() }, 'Чернетку збережено'));
+    $('#hCancel').onclick = e => {
+      if (!v('#hNote')) { fail('Вкажіть причину скасування в полі «Примітка HR».'); return; }
+      confirmTwice(e.target, () => run('hr.cancel', { id: d.id, reason: v('#hNote') }, 'Заявку скасовано'));
+    };
+  }
+
+  // ---------- Бухгалтерія ----------
+
+  async function renderAccounting() {
+    view().innerHTML = '<h1>Бухгалтерія</h1><p class="muted">Завантаження…</p>';
+    try {
+      drawAccounting(await api('acc.overview'));
+    } catch (e) {
+      if (!e.gate) view().innerHTML = '<h1>Бухгалтерія</h1><p class="error">' + esc(e.error) + '</p>';
+    }
+  }
+
+  function drawAccounting(d) {
+    view().innerHTML =
+      '<h1>Бухгалтерія</h1>' +
+      '<p class="lead">Табельні номери для нових оформлень і розрахунки при вибутті.</p>' +
+
+      '<h2>Потрібен табельний номер (' + d.needTab.length + ')</h2>' +
+      (d.needTab.length
+        ? '<div class="table-wrap"><table><thead><tr><th>Працівник</th><th>Юрособа</th><th>Офіційна посада</th><th>Дата прийому</th><th>Табельний номер</th></tr></thead><tbody>' +
+            d.needTab.map(t => '<tr><td>' + esc(t.name) + '<div class="muted">' + esc(t.unit) + '</div></td>' +
+              '<td>' + esc(t.entity) + (t.doc ? '<div><a href="' + esc(t.doc) + '" target="_blank" rel="noopener">документ рахунку</a></div>' : '') + '</td>' +
+              '<td>' + esc(t.position) + '</td><td>' + esc(t.start) + '</td>' +
+              '<td class="actions"><div class="inline-edit"><input type="text" data-tab="' + esc(t.oid) + '" placeholder="з 1С">' +
+              '<button class="btn link" data-save="' + esc(t.oid) + '">Зберегти</button></div></td></tr>').join('') +
+          '</tbody></table></div>'
+        : '<p class="muted">Усі офіційні оформлення мають табельні номери.</p>') +
+
+      '<h2>Розрахунок при вибутті (' + d.settlements.length + ')</h2>' +
+      (d.settlements.length
+        ? '<div class="table-wrap"><table><thead><tr><th>Працівник</th><th>Останній робочий день</th><th>Оформлений</th><th>Заявка</th><th></th></tr></thead><tbody>' +
+            d.settlements.map(s => '<tr><td>' + esc(s.name) + '<div class="muted">' + esc(s.unit) + '</div></td>' +
+              '<td>' + esc(s.lastDay) + '</td><td>' + esc(s.official) + '</td>' +
+              '<td>' + esc(s.id) + ' ' + statusTag(s.status) + '</td>' +
+              '<td class="actions"><button class="btn link" data-settle="' + esc(s.id) + '">Розраховано</button></td></tr>').join('') +
+          '</tbody></table></div>'
+        : '<p class="muted">Розрахунків, що очікують, немає.</p>');
+
+    view().querySelectorAll('[data-save]').forEach(b => b.onclick = () => withBusy(b, async () => {
+      const tab = view().querySelector('[data-tab="' + b.dataset.save + '"]').value;
+      const res = await api('acc.setTab', { oid: b.dataset.save, tab: tab });
+      drawAccounting(res);
+      toast(res.warning || 'Табельний номер збережено', !!res.warning);
+    }));
+    view().querySelectorAll('[data-settle]').forEach(b => b.onclick = () => confirmTwice(b, async () => {
+      drawAccounting(await api('acc.settle', { id: b.dataset.settle }));
+      toast('Розрахунок відмічено');
+    }));
+  }
+
+  // ---------- Файли ----------
+
+  // Файл → { name, mimeType, base64 }. Великі фото стискаються до 2000 px (JPEG)
+  async function fileToPayload(file) {
+    let blob = file;
+    let type = file.type || 'application/octet-stream';
+    if (/^image\/(jpeg|png|webp)$/.test(type) && file.size > 1.5 * 1024 * 1024) {
+      try { blob = await shrinkImage(file); type = 'image/jpeg'; } catch (e) { blob = file; }
+    }
+    const dataUrl = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(new Error('Не вдалося прочитати файл'));
+      r.readAsDataURL(blob);
+    });
+    return { name: file.name, mimeType: type, base64: String(dataUrl).split(',')[1] };
+  }
+
+  function shrinkImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, 2000 / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(img.src);
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error('Не вдалося стиснути фото')), 'image/jpeg', 0.85);
+      };
+      img.onerror = () => reject(new Error('Не вдалося відкрити фото'));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+</script>
+<script>
+  // ============================================================
+  // Окрема сторінка порталу (GitHub Pages).
+  // Перевизначає функції з Client.html: виклик бекенду, вхід, вихід.
+  // ============================================================
+
+  // Адреси — у файлі config.js поруч із index.html, щоб index.html можна було замінювати повністю
+  const CONFIG = window.HR_CONFIG || {};
+
+  const SESSION_KEY = 'hrPortalSession';
+  let googleToken = null;   // токен Google — лише на час входу (надіслати код і перевірити його)
+
+  function getSession() {
+    try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch (e) { return null; }
+  }
+  function setSession(s) {
+    try {
+      if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+      else localStorage.removeItem(SESSION_KEY);
+    } catch (e) { /* приватний режим без localStorage — сесія житиме до закриття сторінки */ }
+  }
+
+  // Запит до бекенду. text/plain — щоб браузер не робив попередній CORS-запит, який Apps Script не підтримує
+  async function callBackendHttp(action, payload) {
+    const body = { action: action, payload: payload || {} };
+    const s = getSession();
+    const needsGoogle = action === 'auth.sendCode' || action === 'auth.verify';
+    if (s && !needsGoogle) body.session = s;
+    else body.token = googleToken;
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const res = await fetch(CONFIG.BACKEND_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(body)
+        });
+        const text = await res.text();
+        try { return JSON.parse(text); }
+        catch (e) { if (attempt === 2) return { ok: false, error: 'Помилка сервера (код ' + res.status + '). Оновіть сторінку.' }; }
+      } catch (e) {
+        if (attempt === 2) return { ok: false, error: 'Немає зв’язку з сервером. Перевірте інтернет і оновіть сторінку.' };
+      }
+      await new Promise(r => setTimeout(r, 1500));
+    }
+  }
+
+  function api(action, payload) {
+    return callBackendHttp(action, payload).then(r => {
+      if (r && r.ok) return r.data;
+      if (r && GATE_CODES.indexOf(r.code) !== -1 && !action.startsWith('auth.')) {
+        showGate(r);
+        throw { error: '', gate: true };
+      }
+      throw (r || { error: 'Порожня відповідь сервера' });
+    });
+  }
+
+  // ---------- Старт ----------
+
+  async function start() {
+    if (!CONFIG.BACKEND_URL || !CONFIG.GOOGLE_CLIENT_ID) {
+      view().innerHTML = '<h1>Портал не налаштований</h1><p class="error">Немає файлу config.js або в ньому не заповнені BACKEND_URL і GOOGLE_CLIENT_ID.</p>';
+      return;
+    }
+    if (!getSession()) { clearShell(); return renderLogin(); }
+    try {
+      state.boot = await api('bootstrap');
+      renderShell();
+      go('home');
+    } catch (e) {
+      if (e.gate) return;
+      clearShell();
+      view().innerHTML = '<h1>Портал не завантажився</h1><p class="error">' + esc(e.error) + '</p>' +
+        '<p>Оновіть сторінку. Якщо помилка повторюється, надішліть цей текст адміністратору.</p>';
+    }
+  }
+
+  function showGate(r) {
+    clearShell();
+    if (r.code === 'NO_SESSION') { setSession(null); return renderLogin(); }
+    if (r.code === 'LOCKED') {
+      view().innerHTML = '<h1>Портал тимчасово закритий</h1>' +
+        '<p>Доступ закрив адміністратор. Спробуйте пізніше або зверніться до адміністратора.</p>';
+      return;
+    }
+    setSession(null);
+    view().innerHTML = '<h1>Немає доступу</h1>' +
+      '<p>Акаунт <b>' + esc(r.email || '') + '</b> не доданий до порталу.</p>' +
+      '<p>Попросіть адміністратора додати цей email або увійдіть іншим акаунтом.</p>' +
+      '<div class="form-actions"><button class="btn primary" id="otherAccount">Увійти іншим акаунтом</button></div>';
+    $('#otherAccount').onclick = () => renderLogin();
+  }
+
+  // ---------- Вхід: Google → код на пошту ----------
+
+  function jwtEmail(token) {
+    try {
+      const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      return JSON.parse(decodeURIComponent(escape(atob(part)))).email || '';
+    } catch (e) { return ''; }
+  }
+
+  function renderLogin() {
+    googleToken = null;
+    view().innerHTML =
+      '<h1>Вхід у HR портал</h1>' +
+      '<div class="panel">' +
+        '<div id="googleStep">' +
+          '<p>Увійдіть робочим Google-акаунтом. Якщо на пристрої кілька акаунтів — Google запропонує обрати.</p>' +
+          '<div id="googleButton" style="min-height:44px"></div>' +
+        '</div>' +
+        '<div id="codeStep" hidden>' +
+          '<p>Акаунт: <b id="loginEmail"></b>. Ми надіслали одноразовий код на цю пошту.</p>' +
+          '<div class="field"><label for="otp">Код з листа</label>' +
+            '<input type="text" id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="otp" placeholder="000000">' +
+            '<div class="hint">Код дійсний 10 хвилин. Лист може прийти в «Спам».</div></div>' +
+          '<div class="form-actions">' +
+            '<button class="btn primary" id="verify">Увійти</button>' +
+            '<button class="btn" id="resend">Надіслати новий код</button>' +
+            '<button class="btn link" id="switchAccount">Інший акаунт</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-error" id="loginError" hidden style="margin-top:16px"></div>' +
+      '</div>' +
+      '<p class="muted">Якщо кнопка входу не працює, відкрийте портал у Chrome або Safari, а не у вбудованому браузері месенджера.</p>';
+
+    const tryRender = () => {
+      if (!(window.google && google.accounts && google.accounts.id)) return setTimeout(tryRender, 200);
+      google.accounts.id.initialize({
+        client_id: CONFIG.GOOGLE_CLIENT_ID,
+        callback: onGoogleCredential,
+        auto_select: false,
+        cancel_on_tap_outside: true
+      });
+      google.accounts.id.renderButton($('#googleButton'), {
+        theme: 'outline', size: 'large', text: 'signin_with', shape: 'rectangular', locale: 'uk', width: 280
+      });
+    };
+    tryRender();
+  }
+
+  function loginError(msg) {
+    const b = $('#loginError');
+    if (!b) return;
+    b.textContent = msg || '';
+    b.hidden = !msg;
+  }
+
+  async function sendLoginCode() {
+    loginError('');
+    try {
+      await api('auth.sendCode');
+      toast('Код надіслано');
+      $('#otp').focus();
+    } catch (x) {
+      if (x.code === 'NO_ACCESS' || x.code === 'LOCKED') return showGate(x);
+      loginError(x.error);
+    }
+  }
+
+  async function onGoogleCredential(resp) {
+    googleToken = resp.credential;
+    $('#googleStep').hidden = true;
+    $('#codeStep').hidden = false;
+    $('#loginEmail').textContent = jwtEmail(googleToken);
+
+    const verify = btn => withBusy(btn, async () => {
+      loginError('');
+      try {
+        const r = await api('auth.verify', { code: $('#otp').value });
+        setSession({ email: r.email, token: r.sessionToken });
+        googleToken = null;
+        start();
+      } catch (x) { loginError(x.error); }
+    });
+    $('#verify').onclick = e => verify(e.target);
+    $('#otp').addEventListener('keydown', e => { if (e.key === 'Enter') verify($('#verify')); });
+    $('#resend').onclick = e => withBusy(e.target, sendLoginCode);
+    $('#switchAccount').onclick = () => renderLogin();
+
+    await sendLoginCode();
+  }
+
+  async function logout() {
+    try { await api('auth.logout'); } catch (e) { /* сесію однаково вважаємо завершеною */ }
+    setSession(null);
+    try { google.accounts.id.disableAutoSelect(); } catch (e) { /* бібліотека ще не завантажилась */ }
+    clearShell();
+    renderLogin();
+  }
+
+  start();
+
+</script>
+</body>
+</html>
