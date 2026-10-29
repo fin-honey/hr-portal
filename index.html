@@ -41,6 +41,9 @@
   .me-text b { font-weight: 600; }
   .me-text span { color: var(--muted); font-size: 13px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .me .logout { padding: 7px 14px; font-size: 14px; }
+  .user-btn { display: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
+              color: var(--ink); align-items: center; justify-content: center; padding: 0; }
+  .user-panel { display: none; }
   body.no-shell .menu-btn, body.no-shell .rail { display: none !important; }
   body.no-shell .app { grid-template-columns: 1fr; }
 
@@ -174,12 +177,23 @@
     /* Меню — висувна панель під шапкою */
     .rail { position: fixed; top: 56px; left: 0; right: 0; z-index: 25; border-right: 0; border-bottom: 1px solid var(--line);
             max-height: calc(100vh - 56px); overflow-y: auto; padding: 4px 0 12px;
-            transform: translateY(-110%); transition: transform .2s ease; box-shadow: 0 8px 24px rgba(30, 36, 51, .15); }
-    body.menu-open .rail { transform: translateY(0); }
+            transform: translateY(-110%); transition: transform .2s ease, visibility .2s; box-shadow: 0 8px 24px rgba(30, 36, 51, .15);
+            visibility: hidden; pointer-events: none; }
+    body.menu-open .rail { transform: translateY(0); visibility: visible; pointer-events: auto; }
     .rail nav { position: static; }
     .nav-item { padding: 14px 20px 14px 17px; }
-    .me-text span { max-width: 120px; }
-    .me-text b { display: none; }
+    .me-text, .me > .logout { display: none; }
+    .user-btn { display: inline-flex; }
+    /* Меню користувача — висувна панель праворуч, з відступом зліва */
+    .user-panel { display: block; position: fixed; top: 56px; left: 56px; right: 0; z-index: 25; background: var(--paper);
+                  border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); border-bottom-left-radius: var(--radius);
+                  padding: 18px 20px 20px; box-shadow: 0 8px 24px rgba(30, 36, 51, .15);
+                  transform: translateY(-110%); transition: transform .2s ease, visibility .2s;
+                  visibility: hidden; pointer-events: none; }
+    body.user-open .user-panel { transform: translateY(0); visibility: visible; pointer-events: auto; }
+    .user-panel .label { font-size: 13px; color: var(--muted); }
+    .user-panel .user-email { font-weight: 600; word-break: break-all; margin: 2px 0 4px; }
+    .user-panel .logout { margin-top: 14px; width: 100%; padding: 10px; }
     .view { padding: 20px 16px 40px; }
     h1 { font-size: 22px; }
     .grid2 { grid-template-columns: 1fr; }
@@ -207,7 +221,7 @@
     .submit-bar .btn { flex: 1 1 auto; }
     input[type=text], input[type=email], input[type=number], input[type=search], input[type=date], select, textarea { font-size: 16px; }
   }
-  @media (prefers-reduced-motion: reduce) { .rail { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .rail, .user-panel { transition: none; } }
 </style>
 
 </head>
@@ -318,24 +332,37 @@
 
   // ---------- Меню на телефоні ----------
 
-  function setMenu(open) {
-    document.body.classList.toggle('menu-open', open);
-    const btn = $('#menuBtn'), scrim = $('#scrim');
-    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (scrim) scrim.hidden = !open;
+  // Ліве меню розділів і праве меню користувача: відкрите може бути лише одне
+  function setPanels(menuOpen, userOpen) {
+    document.body.classList.toggle('menu-open', menuOpen);
+    document.body.classList.toggle('user-open', userOpen);
+    const btn = $('#menuBtn'), ubtn = $('#userBtn'), scrim = $('#scrim');
+    if (btn) btn.setAttribute('aria-expanded', menuOpen ? 'true' : 'false');
+    if (ubtn) ubtn.setAttribute('aria-expanded', userOpen ? 'true' : 'false');
+    if (scrim) scrim.hidden = !(menuOpen || userOpen);
   }
+  function setMenu(open) { setPanels(open, false); }
+  function setUserMenu(open) { setPanels(false, open); }
 
   function initMenu() {
     const btn = $('#menuBtn'), scrim = $('#scrim');
     if (btn) btn.onclick = () => setMenu(!document.body.classList.contains('menu-open'));
-    if (scrim) scrim.onclick = () => setMenu(false);
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });
+    if (scrim) scrim.onclick = () => setPanels(false, false);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') setPanels(false, false); });
   }
 
   // Вимкнути автозаповнення браузера (паролі, картки, адреси) на всіх полях порталу
+  // Для полів без власного значення autocomplete, а також унікальне ім'я поля:
+  // Chrome підставляє збережені дані за назвою поля, тож випадкова назва не дає йому «впізнати» поле
   function disableAutofill(root) {
-    root.querySelectorAll('input:not([type=checkbox]):not([type=radio]):not([type=file]):not([autocomplete])')
-      .forEach(i => i.setAttribute('autocomplete', 'off'));
+    root.querySelectorAll('input:not([type=checkbox]):not([type=radio]):not([type=file]):not([data-noautofill])')
+      .forEach(i => {
+        i.setAttribute('autocomplete', 'off');
+        i.setAttribute('name', 'f' + Math.random().toString(36).slice(2, 10));
+        i.setAttribute('autocorrect', 'off');
+        i.setAttribute('spellcheck', 'false');
+        i.setAttribute('data-noautofill', '1');
+      });
   }
   // Підписи для карток на телефоні: кожна клітинка отримує назву свого стовпця
   function labelTables(root) {
@@ -356,7 +383,7 @@
     });
   }
   new MutationObserver(() => { disableAutofill(document); labelTables(document); })
-    .observe(document.getElementById('view'), { childList: true, subtree: true });
+    .observe(document.body, { childList: true, subtree: true });
   initMenu();
 
   // ---------- Вхід ----------
@@ -385,7 +412,7 @@
         '<div class="form-actions"><button class="btn primary" id="sendCode">Надіслати код</button></div>' +
         '<div id="codeStep" hidden>' +
           '<div class="field" style="margin-top:20px"><label for="otp">Код з листа</label>' +
-            '<input type="text" id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="otp" placeholder="000000">' +
+            '<input type="text" id="otp" inputmode="numeric" autocomplete="off" maxlength="6" class="otp" placeholder="000000">' +
             '<div class="hint">Код дійсний 10 хвилин. Лист може прийти в «Спам».</div></div>' +
           '<div class="form-actions"><button class="btn primary" id="verify">Увійти</button></div>' +
         '</div>' +
@@ -462,9 +489,22 @@
     document.body.classList.remove('no-shell');
     const me = state.boot.me;
     state.lastEmail = me.email;
-    $('#me').innerHTML = '<div class="me-text"><b>' + esc(ROLE_LABELS[me.role] || me.role) + '</b><span>' + esc(me.email) + '</span></div>' +
-      '<button class="btn logout" id="logout">Вийти</button>';
+    const roleLabel = esc(ROLE_LABELS[me.role] || me.role);
+    $('#me').innerHTML =
+      '<div class="me-text"><b>' + roleLabel + '</b><span>' + esc(me.email) + '</span></div>' +
+      '<button class="btn logout" id="logout">Вийти</button>' +
+      // на телефоні — кнопка-аватар і висувна панель праворуч
+      '<button class="user-btn" id="userBtn" aria-label="Профіль" aria-expanded="false" aria-controls="userPanel">' +
+        '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8">' +
+        '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" stroke-linecap="round"/></svg></button>' +
+      '<div class="user-panel" id="userPanel">' +
+        '<div class="label">Ви увійшли як</div><div class="user-email">' + esc(me.email) + '</div>' +
+        '<div class="muted">' + roleLabel + '</div>' +
+        '<button class="btn logout" id="logoutMobile">Вийти</button>' +
+      '</div>';
     $('#logout').onclick = logout;
+    $('#logoutMobile').onclick = logout;
+    $('#userBtn').onclick = () => setUserMenu(!document.body.classList.contains('user-open'));
   }
 
   const PAGE_TITLES = { home: 'Головна', request: 'Нова заявка', mine: 'Мої заявки', hrdesk: 'Черга HR',
@@ -472,7 +512,7 @@
 
   function go(page) {
     state.page = page;
-    setMenu(false);
+    setPanels(false, false);
     document.title = 'HR портал | ' + (PAGE_TITLES[page] || '');
     window.scrollTo(0, 0);
     document.querySelectorAll('.nav-item').forEach(b => {
@@ -1807,8 +1847,8 @@
         '<div id="codeStep" hidden>' +
           '<p>Акаунт: <b id="loginEmail"></b>. Ми надіслали одноразовий код на цю пошту.</p>' +
           '<div class="field"><label for="otp">Код з листа</label>' +
-            '<input type="text" id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="otp" placeholder="000000">' +
-            '<div class="hint">Код дійсний 10 хвилин. Лист може прийти в «Спам».</div></div>' +
+            '<input type="text" id="otp" inputmode="numeric" autocomplete="off" maxlength="6" class="otp" placeholder="000000">' +
+            '<div class="hint">Код дійсний 10 хвилин. Лист може прийти в «Спам». Після введення 6 цифр вхід відбудеться сам.</div></div>' +
           '<div class="form-actions">' +
             '<button class="btn primary" id="verify">Увійти</button>' +
             '<button class="btn" id="resend">Надіслати новий код</button>' +
@@ -1859,17 +1899,36 @@
     $('#codeStep').hidden = false;
     $('#loginEmail').textContent = jwtEmail(googleToken);
 
-    const verify = btn => withBusy(btn, async () => {
+    // Кнопка заблокована до повного завантаження порталу — інакше після перевірки коду
+    // ще кілька секунд нічого не видно, і людина натискає вдруге
+    let verifying = false;
+    const verify = async () => {
+      if (verifying) return;
+      const code = $('#otp').value.replace(/\D/g, '');
+      if (code.length !== 6) { loginError('Введіть 6 цифр коду з листа'); return; }
+      verifying = true;
+      const btn = $('#verify');
+      btn.disabled = true;
+      btn.textContent = 'Входимо…';
       loginError('');
       try {
-        const r = await api('auth.verify', { code: $('#otp').value });
+        const r = await api('auth.verify', { code: code });
         setSession({ email: r.email, token: r.sessionToken });
         googleToken = null;
-        start();
-      } catch (x) { loginError(x.error); }
+        await start();
+      } catch (x) {
+        loginError(x.error);
+        btn.disabled = false;
+        btn.textContent = 'Увійти';
+        verifying = false;
+      }
+    };
+    $('#verify').onclick = verify;
+    $('#otp').addEventListener('input', e => {
+      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+      if (e.target.value.length === 6) verify();
     });
-    $('#verify').onclick = e => verify(e.target);
-    $('#otp').addEventListener('keydown', e => { if (e.key === 'Enter') verify($('#verify')); });
+    $('#otp').addEventListener('keydown', e => { if (e.key === 'Enter') verify(); });
     $('#resend').onclick = e => withBusy(e.target, sendLoginCode);
     $('#switchAccount').onclick = () => renderLogin();
 
