@@ -884,7 +884,12 @@
       // Новий співробітник
       '<section class="panel" id="s-new" hidden><h2>Новий співробітник</h2>' +
         '<div class="grid2">' + input('rSurname', 'Прізвище', 'text') + input('rName', 'Ім\'я (повне, як у паспорті)', 'text') + '</div>' +
-        input('rPatronymic', 'По батькові', 'text', { optional: true }) +
+        '<div class="grid2">' +
+          input('rPatronymic', 'По батькові', 'text', { optional: true }) +
+          '<div class="field"><label for="rIpn">Ідентифікаційний код (РНОКПП)</label>' +
+            '<input type="text" id="rIpn" inputmode="numeric" maxlength="10" placeholder="10 цифр">' +
+            '<div class="hint" id="ipnHint">Обов\'язковий, якщо працівника оформлюємо.</div></div>' +
+        '</div>' +
         (singleUnit
           ? '<div class="field"><div class="label">Підрозділ</div>' + esc(F.units[0]) + '</div>'
           : comboField('cUnit', 'Підрозділ', 'Почніть вводити назву підрозділу')) +
@@ -898,8 +903,6 @@
         radios('decision', mapOptions(c.decision), 'Оформлення') +
         '<div id="s-noreason" hidden>' + input('rNoReason', 'Чому не оформлюємо', 'text') + '</div>' +
         '<div id="s-hiredocs" hidden>' +
-          '<div class="field"><label for="rIpn">РНОКПП (ідентифікаційний код)</label>' +
-            '<input type="text" id="rIpn" inputmode="numeric" maxlength="10" placeholder="10 цифр" data-req="РНОКПП"></div>' +
           '<div class="field"><label for="rPassport">Паспорт / ID-картка</label>' +
             '<input type="file" id="rPassport" accept="image/*,application/pdf" data-req="Паспорт / ID-картка">' +
             '<div class="hint">Один файл: фото або скан (усі сторінки / обидва боки в одному PDF чи на одному фото).</div></div>' +
@@ -1109,8 +1112,13 @@
 
     const errors = [];
     if (missing.length) errors.push('Заповніть: ' + missing.join(', ') + '.');
-    if (!$('#s-hiredocs').hidden && v('#rIpn') && !/^\d{10}$/.test(v('#rIpn').replace(/\s/g, ''))) {
-      errors.push('РНОКПП має містити 10 цифр.');
+    if (val('type') === 'new') {
+      const ipn = v('#rIpn').replace(/\s/g, '');
+      const ipnField = $('#rIpn').closest('.field');
+      const ipnBad = (val('decision') === 'hire' && !ipn) || (ipn && !/^\d{10}$/.test(ipn));
+      ipnField.classList.toggle('invalid', ipnBad);
+      if (val('decision') === 'hire' && !ipn) errors.push('Заповніть ідентифікаційний код (РНОКПП).');
+      else if (ipn && !/^\d{10}$/.test(ipn)) errors.push('Ідентифікаційний код має містити 10 цифр.');
     }
 
     if (!$('#s-visit').hidden) {
