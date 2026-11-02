@@ -157,6 +157,11 @@
   .detail-block h3 { font-size: 14px; font-weight: 600; color: var(--muted); margin: 0 0 8px; }
   .details dd.highlight { font-weight: 700; color: var(--honey); }
   .filters select { width: auto; }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .panel-head h2 { margin: 0; }
+  .doc-list, .edit-log { margin: 0; padding-left: 18px; }
+  .doc-list li, .edit-log li { margin-bottom: 4px; }
+  .btn.link.back { padding-left: 0; }
   .inline-edit { display: flex; gap: 6px; justify-content: flex-end; }
   .inline-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .inline-row select { flex: 1; min-width: 220px; }
@@ -507,7 +512,7 @@
     $('#userBtn').onclick = () => setUserMenu(!document.body.classList.contains('user-open'));
   }
 
-  const PAGE_TITLES = { home: 'Головна', request: 'Нова заявка', mine: 'Мої заявки', hrdesk: 'Черга HR',
+  const PAGE_TITLES = { home: 'Головна', request: 'Нова заявка', mine: 'Мої заявки', hrdesk: 'Черга HR', hrcard: 'Заявка',
     accounting: 'Бухгалтерія', employees: 'Працівники', users: 'Користувачі', dicts: 'Довідники', security: 'Безпека' };
 
   function go(page) {
@@ -516,11 +521,11 @@
     document.title = 'HR портал | ' + (PAGE_TITLES[page] || '');
     window.scrollTo(0, 0);
     document.querySelectorAll('.nav-item').forEach(b => {
-      if (b.dataset.page === page) b.setAttribute('aria-current', 'page');
+      if (b.dataset.page === (page === 'hrcard' ? 'hrdesk' : page)) b.setAttribute('aria-current', 'page');
       else b.removeAttribute('aria-current');
     });
     view().onchange = null;
-    ({ home: renderHome, request: renderRequest, mine: renderMine, employees: renderEmployees, hrdesk: renderHrDesk, accounting: renderAccounting,
+    ({ home: renderHome, request: renderRequest, mine: renderMine, employees: renderEmployees, hrdesk: renderHrDesk, hrcard: renderHrCard, accounting: renderAccounting,
        users: renderUsers, dicts: renderDictList, security: renderSecurity })[page]();
   }
 
@@ -879,6 +884,7 @@
       // Новий співробітник
       '<section class="panel" id="s-new" hidden><h2>Новий співробітник</h2>' +
         '<div class="grid2">' + input('rSurname', 'Прізвище', 'text') + input('rName', 'Ім\'я (повне, як у паспорті)', 'text') + '</div>' +
+        input('rPatronymic', 'По батькові', 'text', { optional: true }) +
         (singleUnit
           ? '<div class="field"><div class="label">Підрозділ</div>' + esc(F.units[0]) + '</div>'
           : comboField('cUnit', 'Підрозділ', 'Почніть вводити назву підрозділу')) +
@@ -891,6 +897,15 @@
         '</div>' +
         radios('decision', mapOptions(c.decision), 'Оформлення') +
         '<div id="s-noreason" hidden>' + input('rNoReason', 'Чому не оформлюємо', 'text') + '</div>' +
+        '<div id="s-hiredocs" hidden>' +
+          '<div class="field"><label for="rIpn">РНОКПП (ідентифікаційний код)</label>' +
+            '<input type="text" id="rIpn" inputmode="numeric" maxlength="10" placeholder="10 цифр" data-req="РНОКПП"></div>' +
+          '<div class="field"><label for="rPassport">Паспорт / ID-картка</label>' +
+            '<input type="file" id="rPassport" accept="image/*,application/pdf" data-req="Паспорт / ID-картка">' +
+            '<div class="hint">Один файл: фото або скан (усі сторінки / обидва боки в одному PDF чи на одному фото).</div></div>' +
+          '<div class="field"><label for="rIpnDoc">Документ РНОКПП</label>' +
+            '<input type="file" id="rIpnDoc" accept="image/*,application/pdf" data-req="Документ РНОКПП"></div>' +
+        '</div>' +
       '</section>' +
 
       // Існуючий працівник
@@ -984,6 +999,7 @@
       's-posother': isNew && comboValue('cPosition') === OTHER,
       's-referral': isNew && v('#rChannel').toLowerCase().indexOf('реферал') !== -1,
       's-noreason': isNew && dec === 'no_other',
+      's-hiredocs': isNew && dec === 'hire',
       's-employee': isExit || isChange,
       's-exit': isExit,
       's-change': isChange,
@@ -1011,6 +1027,13 @@
     if (sm) sm.textContent = lines.join(' ');
   }
 
+  // «10:00–12:00» для слоту, що починається о h і триває minutes
+  function slotLabel(h, minutes) {
+    const end = Number(h) * 60 + (Number(minutes) || 60);
+    const p = n => String(n).padStart(2, '0');
+    return p(h) + ':00–' + p(Math.floor(end / 60) % 24) + ':' + p(end % 60);
+  }
+
   // --- дата і час візиту: результат перевірки завжди в одному місці ---
 
   function fmtUa(iso) { return iso ? iso.split('-').reverse().join('.') : ''; }
@@ -1030,7 +1053,7 @@
     if (!hour) return { state: 'none', text: 'Оберіть час.' };
     const busy = slotState.busy[hour] || 0;
     if (busy) return { state: 'warn', text: 'Цей час уже зайнятий' + (busy > 1 ? ' (' + busy + ' записи)' : '') + '. Його можна залишити, якщо ви домовились з відділом кадрів.' };
-    return { state: 'ok', text: 'Час вільний: ' + fmtUa(date) + ', ' + String(hour).padStart(2, '0') + ':00.' };
+    return { state: 'ok', text: 'Час вільний: ' + fmtUa(date) + ', ' + slotLabel(hour, F.visitMinutes) + '.' };
   }
 
   function renderVisitStatus() {
@@ -1059,11 +1082,11 @@
       r.slots.forEach(s => { slotState.busy[String(s.hour)] = s.busy; });
       sel.innerHTML = '<option value="">Оберіть час</option>' + r.slots.map(s =>
         '<option value="' + s.hour + '"' + (String(s.hour) === keep ? ' selected' : '') + '>' +
-          String(s.hour).padStart(2, '0') + ':00 — ' + (s.busy ? 'зайнято' : 'вільно') + '</option>').join('');
+          slotLabel(s.hour, F.visitMinutes) + ' — ' + (s.busy ? 'зайнято' : 'вільно') + '</option>').join('');
     } catch (e) {
       slotState = { date: date, weekend: false, busy: {} };
       sel.innerHTML = '<option value="">Оберіть час</option>' +
-        F.visitHours.map(h => '<option value="' + h + '">' + String(h).padStart(2, '0') + ':00</option>').join('');
+        F.visitHours.map(h => '<option value="' + h + '">' + slotLabel(h, F.visitMinutes) + '</option>').join('');
       toast('Не вдалося перевірити зайнятість: ' + e.error, true);
     }
     applyRules();
@@ -1086,6 +1109,9 @@
 
     const errors = [];
     if (missing.length) errors.push('Заповніть: ' + missing.join(', ') + '.');
+    if (!$('#s-hiredocs').hidden && v('#rIpn') && !/^\d{10}$/.test(v('#rIpn').replace(/\s/g, ''))) {
+      errors.push('РНОКПП має містити 10 цифр.');
+    }
 
     if (!$('#s-visit').hidden) {
       const r = visitCheck();
@@ -1102,7 +1128,7 @@
     const newPos = comboValue('cNewPosition');
     return {
       type: val('type'),
-      surname: v('#rSurname'), name: v('#rName'),
+      surname: v('#rSurname'), name: v('#rName'), patronymic: v('#rPatronymic'), ipn: v('#rIpn'),
       unit: F.units.length === 1 ? F.units[0] : comboValue('cUnit'),
       position: pos === OTHER ? v('#rPositionOther') : pos,
       firstDay: v('#rFirstDay'), channel: v('#rChannel'), referrer: comboValue('cReferrer'),
@@ -1132,7 +1158,14 @@
 
     let r;
     try {
-      r = await api('form.submit', collectRequest());
+      const payload = collectRequest();
+      if (!$('#s-hiredocs').hidden) {
+        payload.files = {
+          passport: await fileToPayload($('#rPassport').files[0]),
+          ipn: await fileToPayload($('#rIpnDoc').files[0])
+        };
+      }
+      r = await api('form.submit', payload);
     } catch (e) {
       box.textContent = e.error || String(e);
       box.hidden = false;
@@ -1201,7 +1234,7 @@
   // Порядок і групування полів у деталях заявки (порядок ключів з сервера не гарантований)
   const DETAIL_GROUPS = [
     { title: 'Заявка', fields: ['Подія', 'Тип звернення', 'Підтип', 'Отримано'] },
-    { title: 'Працівник', fields: ['__name', 'Підрозділ', 'Посада', 'Перший робочий день', 'Канал залучення',
+    { title: 'Працівник', fields: ['__name', 'РНОКПП', 'Підрозділ', 'Посада', 'Перший робочий день', 'Канал залучення',
         'Рекомендував', 'Причина неоформлення'] },
     { title: 'Вибуття', fields: ['Останній робочий день', 'Реальна причина вибуття', 'Ініціатор', 'Джерело відповіді',
         'Коментар до причини', 'Чи був оформлений', 'Офіційна підстава', 'Дата заяви'] },
@@ -1212,7 +1245,7 @@
   ];
 
   function renderDetailBlocks(r) {
-    const value = k => k === '__name' ? ((r['Прізвище'] || '') + ' ' + (r["Ім'я"] || '')).trim() : r[k];
+    const value = k => k === '__name' ? [r['Прізвище'], r["Ім'я"], r['По батькові']].filter(Boolean).join(' ') : r[k];
     const label = k => k === '__name' ? 'Прізвище та ім\'я' : k;
     return DETAIL_GROUPS.map(g => {
       const rows = g.fields.filter(k => value(k)).map(k =>
@@ -1396,7 +1429,6 @@
     view().innerHTML =
       '<h1>Черга відділу кадрів</h1>' +
       '<p class="lead">Заявки керівників. Відкрийте заявку, внесіть офіційні дані і проведіть її: облік працівників оновиться автоматично.</p>' +
-      '<div id="hrDetail"></div>' +
       '<div class="toolbar filters">' +
         '<input type="search" id="hSearch" class="grow" placeholder="Пошук за прізвищем або номером">' +
         '<select id="hStatus"><option value="Нова">Нові</option><option value="Виконана">Виконані</option><option value="Скасована">Скасовані</option><option value="">Усі статуси</option></select>' +
@@ -1447,13 +1479,19 @@
     view().querySelectorAll('#hBody [data-id]').forEach(tr => tr.onclick = () => openHrRequest(tr.dataset.id));
   }
 
-  async function openHrRequest(id) {
-    $('#hrDetail').innerHTML = '<div class="panel"><p class="muted">Завантаження заявки…</p></div>';
-    $('#hrDetail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  function openHrRequest(id) {
+    state.hrCardId = id;
+    go('hrcard');
+  }
+
+  async function renderHrCard() {
+    view().innerHTML = '<p><button class="btn link back" id="backToQueue">← Черга HR</button></p>' +
+      '<div id="hrDetail"><p class="muted">Завантаження заявки…</p></div>';
+    $('#backToQueue').onclick = () => go('hrdesk');
     try {
-      drawHrRequest(await api('hr.request', { id: id }));
+      drawHrRequest(await api('hr.request', { id: state.hrCardId }));
     } catch (e) {
-      if (!e.gate) $('#hrDetail').innerHTML = '<div class="panel"><p class="error">' + esc(e.error) + '</p></div>';
+      if (!e.gate) $('#hrDetail').innerHTML = '<p class="error">' + esc(e.error) + '</p>';
     }
   }
 
@@ -1477,7 +1515,7 @@
         '</div>' +
         '<div class="hint">Відповідальний отримує лист, якщо заявку призначив хтось інший. Якщо відповідального немає, ним стане той, хто проведе або скасує заявку.</div>' +
       '</div>' +
-      '<div class="detail-block"><h3>Дії відділу кадрів</h3>' +
+      '<div class="detail-block"><h3>Оформлення</h3>' +
         '<p class="status-box">' + esc(EFFECTS[d.event] || '') + '</p>';
 
       if (rule.person) {
@@ -1548,18 +1586,30 @@
         '</div></div>';
     }
 
-    $('#hrDetail').innerHTML =
-      '<div class="panel">' +
-        '<h2>Заявка ' + esc(d.id) + ' ' + statusTag(d.status) + '</h2>' +
-        (d.warnings && d.warnings.length
-          ? '<div class="status-box err"><b>Проведено, але потрібна ручна дія:</b><br>' + d.warnings.map(esc).join('<br>') + '</div>'
-          : '') +
-        renderDetailBlocks(d.display) +
-        form +
-        '<div class="form-actions"><button class="btn" id="hClose">Згорнути</button></div>' +
-      '</div>';
+    const docsBlock = d.docs.length
+      ? '<div class="detail-block"><h3>Документи</h3><ul class="doc-list">' +
+          d.docs.map(x => '<li><a href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.type) + '</a>' +
+            (x.date ? ' <span class="muted">' + esc(x.date) + '</span>' : '') + '</li>').join('') + '</ul></div>'
+      : '';
+    const editsBlock = d.edits.length
+      ? '<div class="detail-block"><h3>Історія правок</h3><ul class="edit-log">' +
+          d.edits.map(x => '<li><span class="muted">' + esc(x.when) + ', ' + esc(x.who) + ':</span> ' + esc(x.field) + ' — «' +
+            esc(x.from || '—') + '» → «' + esc(x.to || '—') + '»</li>').join('') + '</ul></div>'
+      : '';
 
-    $('#hClose').onclick = () => { $('#hrDetail').innerHTML = ''; };
+    $('#hrDetail').innerHTML =
+      '<h1>Заявка ' + esc(d.id) + ' ' + statusTag(d.status) + '</h1>' +
+      (d.warnings && d.warnings.length
+        ? '<div class="status-box err"><b>Проведено, але потрібна ручна дія:</b><br>' + d.warnings.map(esc).join('<br>') + '</div>'
+        : '') +
+      '<section class="panel">' +
+        '<div class="panel-head"><h2>Дані заявки</h2>' +
+          (open && d.editable.length ? '<button class="btn" id="hEditToggle">Редагувати</button>' : '') + '</div>' +
+        '<div id="hData">' + renderDetailBlocks(d.display) + docsBlock + editsBlock + '</div>' +
+      '</section>' +
+      (open ? '<section class="panel"><h2>Дії відділу кадрів</h2>' + form + '</section>' : '');
+
+    if (open && d.editable.length) $('#hEditToggle').onclick = () => openHrEdit(d);
     if (!open) return;
 
     const collect = () => {
@@ -1582,8 +1632,6 @@
         const res = await api(action, typeof payload === 'function' ? await payload() : payload);
         drawHrRequest(res);
         toast(res.warnings && res.warnings.length ? 'Проведено з попередженнями — див. картку заявки' : okMsg, !!(res.warnings && res.warnings.length));
-        await loadHrQueue();
-        filterHr();
       } catch (e) { if (!e.gate) fail(e.error); }
     };
 
@@ -1596,9 +1644,9 @@
         try {
           const r = await api('form.slots', { date: date });
           sel.innerHTML = r.slots.map(sl => '<option value="' + sl.hour + '"' + (String(sl.hour) === keep ? ' selected' : '') + '>' +
-            String(sl.hour).padStart(2, '0') + ':00 — ' + (sl.busy ? 'зайнято' : 'вільно') + '</option>').join('');
+            slotLabel(sl.hour, d.visitMinutes) + ' — ' + (sl.busy ? 'зайнято' : 'вільно') + '</option>').join('');
         } catch (e) {
-          if (!e.gate) sel.innerHTML = d.visitHours.map(h => '<option value="' + h + '">' + String(h).padStart(2, '0') + ':00</option>').join('');
+          if (!e.gate) sel.innerHTML = d.visitHours.map(h => '<option value="' + h + '">' + slotLabel(h, d.visitMinutes) + '</option>').join('');
         }
       };
       $('#hVisitDate').addEventListener('change', loadHrSlots);
@@ -1646,6 +1694,47 @@
       if (!v('#hNote')) { fail('Вкажіть причину скасування в полі «Примітка HR».'); return; }
       confirmTwice(e.target, () => run('hr.cancel', { id: d.id, reason: v('#hNote') }, 'Заявку скасовано'));
     };
+  }
+
+  // Редагування даних заявки відділом кадрів (до проведення)
+  function openHrEdit(d) {
+    const fieldHtml = (f, i) => {
+      const id = 'he' + i;
+      let control;
+      if (f.type === 'select') {
+        control = '<select id="' + id + '"><option value=""></option>' +
+          f.options.map(o => '<option' + (o === f.value ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select>';
+      } else {
+        control = '<input type="' + (f.type === 'date' ? 'date' : 'text') + '" id="' + id + '" value="' + esc(f.value) + '"' +
+          (f.field === 'РНОКПП' ? ' inputmode="numeric" maxlength="10"' : '') + '>';
+      }
+      return '<div class="field"><label for="' + id + '">' + esc(f.field) + '</label>' + control + '</div>';
+    };
+    $('#hEditToggle').hidden = true;
+    $('#hData').innerHTML =
+      '<p class="hint">Виправлення зберігаються в історії правок заявки.</p>' +
+      d.editable.map(fieldHtml).join('') +
+      '<div class="submit-bar">' +
+        '<button class="btn primary" id="heSave">Зберегти зміни</button>' +
+        '<button class="btn" id="heCancel">Скасувати</button>' +
+        '<div class="form-error" id="heError" hidden></div>' +
+      '</div>';
+    $('#heCancel').onclick = () => drawHrRequest(d);
+    $('#heSave').onclick = e => withBusy(e.target, async () => {
+      const changes = {};
+      d.editable.forEach((f, i) => {
+        const val = v('#he' + i);
+        if (val !== f.value) changes[f.field] = val;
+      });
+      if (!Object.keys(changes).length) { drawHrRequest(d); return; }
+      try {
+        drawHrRequest(await api('hr.edit', { id: d.id, changes: changes }));
+        toast('Зміни збережено');
+      } catch (x) {
+        if (x.gate) return;
+        const b = $('#heError'); b.textContent = x.error; b.hidden = false;
+      }
+    });
   }
 
   // ---------- Бухгалтерія ----------
