@@ -162,6 +162,7 @@
   .doc-list, .edit-log { margin: 0; padding-left: 18px; }
   .doc-list li, .edit-log li { margin-bottom: 4px; }
   .btn.link.back { padding-left: 0; }
+  .vac-off + .vac-off { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
   .inline-edit { display: flex; gap: 6px; justify-content: flex-end; }
   .inline-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .inline-row select { flex: 1; min-width: 220px; }
@@ -470,6 +471,8 @@
 
   function navItems() {
     const b = state.boot;
+    const vacations = [];
+    if (b.canVacations) vacations.push({ id: 'vacbal', label: 'Залишки днів' });
     const items = [{ id: 'home', label: 'Головна' }];
     if (b.canSubmit) items.push({ id: 'request', label: 'Нова заявка' }, { id: 'mine', label: 'Мої заявки' });
     if (b.canHrDesk) items.push({ id: 'hrdesk', label: 'Черга HR' });
@@ -479,13 +482,14 @@
     if (b.canManageUsers) settings.push({ id: 'users', label: 'Користувачі' });
     if (b.editableDicts.length) settings.push({ id: 'dicts', label: 'Довідники' });
     if (b.canSecurity) settings.push({ id: 'security', label: 'Безпека' });
-    return { items, settings };
+    return { items, vacations, settings };
   }
 
   function renderShell() {
-    const { items, settings } = navItems();
+    const { items, vacations, settings } = navItems();
     const btn = i => '<button class="nav-item" data-page="' + i.id + '">' + esc(i.label) + '</button>';
     $('#nav').innerHTML = items.map(btn).join('') +
+      (vacations.length ? '<div class="nav-group">Відпустки</div>' + vacations.map(btn).join('') : '') +
       (settings.length ? '<div class="nav-group">Налаштування</div>' + settings.map(btn).join('') : '');
     $('#nav').onclick = e => {
       const b = e.target.closest('.nav-item');
@@ -512,7 +516,7 @@
     $('#userBtn').onclick = () => setUserMenu(!document.body.classList.contains('user-open'));
   }
 
-  const PAGE_TITLES = { home: 'Головна', request: 'Нова заявка', mine: 'Мої заявки', hrdesk: 'Черга HR', hrcard: 'Заявка',
+  const PAGE_TITLES = { home: 'Головна', request: 'Нова заявка', mine: 'Мої заявки', hrdesk: 'Черга HR', hrcard: 'Заявка', vacbal: 'Залишки днів',
     accounting: 'Бухгалтерія', employees: 'Працівники', users: 'Користувачі', dicts: 'Довідники', security: 'Безпека' };
 
   function go(page) {
@@ -525,7 +529,7 @@
       else b.removeAttribute('aria-current');
     });
     view().onchange = null;
-    ({ home: renderHome, request: renderRequest, mine: renderMine, employees: renderEmployees, hrdesk: renderHrDesk, hrcard: renderHrCard, accounting: renderAccounting,
+    ({ home: renderHome, request: renderRequest, mine: renderMine, employees: renderEmployees, hrdesk: renderHrDesk, hrcard: renderHrCard, vacbal: renderVacBalances, accounting: renderAccounting,
        users: renderUsers, dicts: renderDictList, security: renderSecurity })[page]();
   }
 
@@ -1827,6 +1831,128 @@
       img.onerror = () => reject(new Error('Не вдалося відкрити фото'));
       img.src = URL.createObjectURL(file);
     });
+  }
+
+  // ---------- Відпустки: залишки днів ----------
+
+  let vacData = [];
+
+  async function renderVacBalances() {
+    view().innerHTML = '<h1>Залишки днів відпустки</h1><p class="muted">Завантаження…</p>';
+    try {
+      vacData = await api('vac.balances');
+      drawVacBalances();
+    } catch (e) {
+      if (!e.gate) view().innerHTML = '<h1>Залишки днів відпустки</h1><p class="error">' + esc(e.error) + '</p>';
+    }
+  }
+
+  function daysWord(n) {
+    const a = Math.abs(n) % 100, b = a % 10;
+    if (a > 10 && a < 20) return 'днів';
+    if (b === 1) return 'день';
+    if (b >= 2 && b <= 4) return 'дні';
+    return 'днів';
+  }
+
+  function balanceHtml(acc) {
+    if (acc.balance === null) return '<span class="muted">' + esc(acc.warning) + '</span>';
+    const cls = acc.balance < 0 ? 'error' : '';
+    return '<b class="' + cls + '">' + acc.balance + ' ' + daysWord(acc.balance) + '</b>' +
+      (acc.next ? '<div class="muted">наступний день — ' + esc(acc.next) + '</div>' : '') +
+      (acc.warning ? '<div class="muted">' + esc(acc.warning) + '</div>' : '');
+  }
+
+  function drawVacBalances() {
+    const units = Array.from(new Set(vacData.map(e => e.unit))).sort((a, b) => a.localeCompare(b, 'uk'));
+    view().innerHTML =
+      '<h1>Залишки днів відпустки</h1>' +
+      '<p class="lead">24 календарні дні за робочий рік, по одному дню приблизно кожні 15 днів. ' +
+        'Управлінські — від справжнього першого дня роботи, офіційні — окремо по кожному оформленню.</p>' +
+      '<div id="vacAdjust"></div>' +
+      '<div class="toolbar filters">' +
+        '<input type="search" id="vSearch" class="grow" placeholder="Пошук за прізвищем">' +
+        '<select id="vUnit"><option value="">Усі підрозділи</option>' + units.map(u => '<option>' + esc(u) + '</option>').join('') + '</select>' +
+      '</div>' +
+      '<p class="muted" id="vCount"></p>' +
+      '<div class="table-wrap"><table>' +
+        '<thead><tr><th>Працівник</th><th>Управлінські дні</th><th>Офіційні дні</th>' +
+          (state.boot.canVacAdjust ? '<th></th>' : '') + '</tr></thead>' +
+        '<tbody id="vBody"></tbody></table></div>';
+    $('#vSearch').addEventListener('input', filterVac);
+    $('#vUnit').addEventListener('change', filterVac);
+    filterVac();
+  }
+
+  function filterVac() {
+    const q = v('#vSearch').toLowerCase(), unit = v('#vUnit');
+    const list = vacData.filter(e => (!unit || e.unit === unit) && (!q || e.name.toLowerCase().indexOf(q) !== -1));
+    $('#vCount').textContent = 'Працівників: ' + list.length;
+    $('#vBody').innerHTML = list.map(e =>
+      '<tr>' +
+        '<td>' + esc(e.name) + '<div class="muted">' + esc([e.position, e.unit].filter(Boolean).join(', ')) + '</div>' +
+          (e.mgmt.start ? '<div class="muted">у компанії з ' + esc(e.mgmt.start) + '</div>' : '') + '</td>' +
+        '<td>' + balanceHtml(e.mgmt) + '</td>' +
+        '<td>' + (e.officials.length
+          ? e.officials.map(o => '<div class="vac-off"><div>' + esc(o.entity) + '</div>' + balanceHtml(o) +
+              (o.workingYear ? '<div class="muted">робочий рік ' + esc(o.workingYear.from) + '–' + esc(o.workingYear.to) + '</div>' : '') +
+            '</div>').join('')
+          : '<span class="muted">не оформлений</span>') + '</td>' +
+        (state.boot.canVacAdjust ? '<td class="actions"><button class="btn link" data-adj="' + esc(e.pid) + '">Залишки</button></td>' : '') +
+      '</tr>').join('') ||
+      '<tr><td colspan="4" class="muted">Нікого не знайдено.</td></tr>';
+    view().querySelectorAll('[data-adj]').forEach(b => b.onclick = () => openVacAdjust(vacData.find(e => e.pid === b.dataset.adj)));
+  }
+
+  // HR: початковий залишок або коригування + історія операцій
+  function openVacAdjust(e) {
+    const accounts = [{ id: e.mgmt.account, label: 'Управлінські дні' }]
+      .concat(e.officials.map(o => ({ id: o.account, label: 'Офіційні — ' + o.entity })));
+    const today = new Date().toISOString().slice(0, 10);
+    $('#vacAdjust').innerHTML =
+      '<div class="panel">' +
+        '<div class="panel-head"><h2>' + esc(e.name) + '</h2><button class="btn" id="vaClose">Згорнути</button></div>' +
+        '<div class="field"><label for="vaAcc">Рахунок</label><select id="vaAcc">' +
+          accounts.map(a => '<option value="' + esc(a.id) + '">' + esc(a.label) + '</option>').join('') + '</select></div>' +
+        '<div id="vaHistory" class="muted">Завантаження історії…</div>' +
+        '<div class="field"><div class="label">Операція</div><div class="choices">' +
+          '<label class="choice"><input type="radio" name="vaKind" value="initial" checked> <span><b>Початковий залишок</b>' +
+            '<span class="choice-desc">Скільки днів було на дату (перенесення з поточного обліку). Нарахування далі — від цієї дати</span></span></label>' +
+          '<label class="choice"><input type="radio" name="vaKind" value="adjust"> <span><b>Коригування</b>' +
+            '<span class="choice-desc">Додати або списати дні (від\'ємне число) з поясненням</span></span></label>' +
+        '</div></div>' +
+        '<div class="grid2">' +
+          '<div class="field"><label for="vaDate">На дату</label><input type="date" id="vaDate" value="' + today + '"></div>' +
+          '<div class="field"><label for="vaDays">Днів</label><input type="number" id="vaDays" step="1"></div>' +
+        '</div>' +
+        '<div class="field"><label for="vaComment">Коментар</label><input type="text" id="vaComment"><div class="hint">Для коригування — обов\'язково.</div></div>' +
+        '<div class="submit-bar"><button class="btn primary" id="vaSave">Зберегти</button><div class="form-error" id="vaError" hidden></div></div>' +
+      '</div>';
+
+    const loadHistory = async () => {
+      try {
+        const h = await api('vac.history', { account: v('#vaAcc') });
+        $('#vaHistory').innerHTML = h.length
+          ? '<div class="label">Операції</div><ul class="edit-log">' + h.map(x => '<li>' + esc(x.date) + ' — ' + esc(x.op) + ': ' +
+              (x.days > 0 && x.op !== 'Початковий залишок' ? '+' : '') + x.days + (x.comment ? ' <span class="muted">(' + esc(x.comment) + ')</span>' : '') + '</li>').join('') + '</ul>'
+          : 'Операцій ще немає.';
+      } catch (x) { if (!x.gate) $('#vaHistory').textContent = x.error; }
+    };
+    $('#vaAcc').onchange = loadHistory;
+    loadHistory();
+    $('#vaClose').onclick = () => { $('#vacAdjust').innerHTML = ''; };
+    $('#vaSave').onclick = ev => withBusy(ev.target, async () => {
+      try {
+        vacData = await api('vac.adjust', { pid: e.pid, account: v('#vaAcc'), kind: val('vaKind'),
+          date: v('#vaDate'), days: v('#vaDays'), comment: v('#vaComment') });
+        toast('Збережено');
+        drawVacBalances();
+      } catch (x) {
+        if (x.gate) return;
+        const b = $('#vaError'); b.textContent = x.error; b.hidden = false;
+      }
+    });
+    $('#vacAdjust').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 </script>
 <script>
