@@ -162,6 +162,8 @@
   .doc-list, .edit-log { margin: 0; padding-left: 18px; }
   .doc-list li, .edit-log li { margin-bottom: 4px; }
   .btn.link.back { padding-left: 0; }
+  .vac-row { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 10px 0; }
+  .vac-row .grid2 { gap: 0 16px; }
   .vac-off + .vac-off { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
   .inline-edit { display: flex; gap: 6px; justify-content: flex-end; }
   .inline-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -472,7 +474,8 @@
   function navItems() {
     const b = state.boot;
     const vacations = [];
-    if (b.canVacations) vacations.push({ id: 'vacbal', label: 'Залишки днів' });
+    if (b.canVacRequest) vacations.push({ id: 'vacnew', label: 'Нова відпустка' });
+    if (b.canVacations) vacations.push({ id: 'vacreqs', label: 'Заявки на відпустку' }, { id: 'vacbal', label: 'Залишки днів' });
     const items = [{ id: 'home', label: 'Головна' }];
     if (b.canSubmit) items.push({ id: 'request', label: 'Нова заявка' }, { id: 'mine', label: 'Мої заявки' });
     if (b.canHrDesk) items.push({ id: 'hrdesk', label: 'Черга HR' });
@@ -516,7 +519,7 @@
     $('#userBtn').onclick = () => setUserMenu(!document.body.classList.contains('user-open'));
   }
 
-  const PAGE_TITLES = { home: 'Головна', request: 'Нова заявка', mine: 'Мої заявки', hrdesk: 'Черга HR', hrcard: 'Заявка', vacbal: 'Залишки днів',
+  const PAGE_TITLES = { home: 'Головна', request: 'Нова заявка', mine: 'Мої заявки', hrdesk: 'Черга HR', hrcard: 'Заявка', vacbal: 'Залишки днів', vacnew: 'Нова відпустка', vacreqs: 'Заявки на відпустку', vaccard: 'Відпустка',
     accounting: 'Бухгалтерія', employees: 'Працівники', users: 'Користувачі', dicts: 'Довідники', security: 'Безпека' };
 
   function go(page) {
@@ -525,11 +528,11 @@
     document.title = 'HR портал | ' + (PAGE_TITLES[page] || '');
     window.scrollTo(0, 0);
     document.querySelectorAll('.nav-item').forEach(b => {
-      if (b.dataset.page === (page === 'hrcard' ? 'hrdesk' : page)) b.setAttribute('aria-current', 'page');
+      if (b.dataset.page === ({ hrcard: 'hrdesk', vaccard: 'vacreqs' }[page] || page)) b.setAttribute('aria-current', 'page');
       else b.removeAttribute('aria-current');
     });
     view().onchange = null;
-    ({ home: renderHome, request: renderRequest, mine: renderMine, employees: renderEmployees, hrdesk: renderHrDesk, hrcard: renderHrCard, vacbal: renderVacBalances, accounting: renderAccounting,
+    ({ home: renderHome, request: renderRequest, mine: renderMine, employees: renderEmployees, hrdesk: renderHrDesk, hrcard: renderHrCard, vacbal: renderVacBalances, vacnew: renderVacNew, vacreqs: renderVacReqs, vaccard: renderVacCard, accounting: renderAccounting,
        users: renderUsers, dicts: renderDictList, security: renderSecurity })[page]();
   }
 
@@ -1206,7 +1209,7 @@
   let myRequests = [];
 
   function statusTag(s) {
-    const cls = { 'Нова': 'new', 'Виконана': 'done', 'Скасована': 'off' }[s] || '';
+    const cls = { 'Нова': 'new', 'Виконана': 'done', 'Погоджена': 'done', 'Скасована': 'off', 'Відхилена': 'off' }[s] || '';
     return '<span class="tag ' + cls + '">' + esc(s || '—') + '</span>';
   }
 
@@ -1953,6 +1956,310 @@
       }
     });
     $('#vacAdjust').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---------- Відпустки: нова заявка ----------
+
+  function isoDays(from, to) {
+    if (!from || !to) return 0;
+    const d = (new Date(to + 'T12:00:00') - new Date(from + 'T12:00:00')) / 86400000 + 1;
+    return d > 0 ? Math.round(d) : 0;
+  }
+
+  async function renderVacNew() {
+    view().innerHTML = '<h1>Нова відпустка</h1><p class="muted">Завантаження…</p>';
+    try {
+      drawVacNew(await api('vac.formInit'));
+    } catch (e) {
+      if (!e.gate) view().innerHTML = '<h1>Нова відпустка</h1><p class="error">' + esc(e.error) + '</p>';
+    }
+  }
+
+  function drawVacNew(d) {
+    view().innerHTML =
+      '<h1>Нова відпустка</h1>' +
+      '<p class="lead">Вкажіть фактичні дати. Офіційну частину оформить відділ кадрів.</p>' +
+      '<div class="panel">' +
+        '<div class="field"><label for="vnEmp">Працівник</label><select id="vnEmp"><option value="">Оберіть працівника…</option>' +
+          d.employees.map(e => '<option value="' + esc(e.pid) + '">' + esc(e.name) + ' — ' + esc(e.unit) + '</option>').join('') + '</select></div>' +
+        '<div class="field"><div class="label">Вид</div><div class="choices">' +
+          d.types.map((t, i) => '<label class="choice"><input type="radio" name="vnType" value="' + esc(t) + '"' + (i === 0 ? ' checked' : '') + '> <span><b>' + esc(t) + '</b>' +
+            '<span class="choice-desc">' + (t === 'Відпустка' ? 'Списує дні з залишку' : 'Без збереження ЗП, дні не списуються') + '</span></span></label>').join('') +
+        '</div></div>' +
+        '<div class="grid2">' +
+          '<div class="field"><label for="vnFrom">З</label><input type="date" id="vnFrom"></div>' +
+          '<div class="field"><label for="vnTo">По (включно)</label><input type="date" id="vnTo"></div>' +
+        '</div>' +
+        '<div id="vnInfo"></div>' +
+        '<div class="field"><label for="vnComment">Коментар <span class="muted">(необов\'язково)</span></label><input type="text" id="vnComment"></div>' +
+        '<div class="submit-bar"><button class="btn primary" id="vnSubmit">Подати заявку</button><div class="form-error" id="vnError" hidden></div></div>' +
+      '</div>';
+
+    const update = () => {
+      const emp = d.employees.find(e => e.pid === v('#vnEmp'));
+      const days = isoDays(v('#vnFrom'), v('#vnTo'));
+      const type = val('vnType');
+      let html = '';
+      if (emp) {
+        const bal = emp.mgmt.balance;
+        html += '<div class="status-box">Залишок: <b>' + (bal === null ? 'невідомий' : bal + ' ' + daysWord(bal)) + '</b> (управлінський)' +
+          (emp.officials.length ? '<br>Офіційно: ' + emp.officials.map(o => esc(o.entity) + ' — ' + (o.balance === null ? '?' : o.balance)).join('; ') : '') +
+          (days ? '<br>Ця відпустка: <b>' + days + ' ' + daysWord(days) + '</b> календарних' : '') + '</div>';
+        if (type === 'Відпустка' && bal !== null && days > bal) {
+          const adv = days - bal;
+          html += '<div class="status-box warn">Не вистачає <b>' + adv + ' ' + daysWord(adv) + '</b> — це аванс.' +
+            '<label class="check" style="margin-top:8px"><input type="checkbox" id="vnAdvance"> Аванс погоджено з керівником</label></div>';
+        }
+      } else if (days) {
+        html = '<div class="status-box">' + days + ' ' + daysWord(days) + ' календарних</div>';
+      }
+      const keep = $('#vnAdvance') && $('#vnAdvance').checked;
+      $('#vnInfo').innerHTML = html;
+      if (keep && $('#vnAdvance')) $('#vnAdvance').checked = true;
+    };
+    ['#vnEmp', '#vnFrom', '#vnTo'].forEach(s => $(s).addEventListener('change', update));
+    view().querySelectorAll('input[name=vnType]').forEach(r => r.addEventListener('change', update));
+
+    $('#vnSubmit').onclick = e => withBusy(e.target, async () => {
+      const err = $('#vnError');
+      err.hidden = true;
+      try {
+        const r = await api('vac.submit', {
+          pid: v('#vnEmp'), type: val('vnType'), from: v('#vnFrom'), to: v('#vnTo'),
+          comment: v('#vnComment'), advance: !!($('#vnAdvance') && $('#vnAdvance').checked)
+        });
+        toast('Заявку ' + r.id + ' подано');
+        go('vacreqs');
+      } catch (x) {
+        if (x.gate) return;
+        err.textContent = x.error; err.hidden = false;
+      }
+    });
+  }
+
+  // ---------- Відпустки: список заявок ----------
+
+  let vacReqs = [];
+
+  async function renderVacReqs() {
+    view().innerHTML = '<h1>Заявки на відпустку</h1><p class="muted">Завантаження…</p>';
+    try {
+      vacReqs = await api('vac.list');
+      view().innerHTML =
+        '<h1>Заявки на відпустку</h1>' +
+        '<div class="toolbar filters">' +
+          '<input type="search" id="vrSearch" class="grow" placeholder="Пошук за прізвищем або номером">' +
+          '<select id="vrStatus"><option value="Нова">Нові</option><option value="">Усі статуси</option>' +
+            ['Погоджена', 'Відхилена', 'Скасована'].map(s => '<option>' + s + '</option>').join('') + '</select>' +
+          '<select id="vrSort"><option value="from">За датою початку</option><option value="received">Спершу нові заявки</option></select>' +
+        '</div>' +
+        '<p class="muted" id="vrCount"></p>' +
+        '<div class="table-wrap"><table><thead><tr><th>Працівник</th><th>Період</th><th>Днів</th><th>Вид</th><th>Статус</th></tr></thead>' +
+          '<tbody id="vrBody"></tbody></table></div>';
+      ['#vrSearch', '#vrStatus', '#vrSort'].forEach(s => $(s).addEventListener(s === '#vrSearch' ? 'input' : 'change', filterVacReqs));
+      filterVacReqs();
+    } catch (e) {
+      if (!e.gate) view().innerHTML = '<h1>Заявки на відпустку</h1><p class="error">' + esc(e.error) + '</p>';
+    }
+  }
+
+  function filterVacReqs() {
+    const q = v('#vrSearch').toLowerCase(), st = v('#vrStatus');
+    let list = vacReqs.filter(r => (!st || r.status === st) && (!q || (r.name + ' ' + r.id).toLowerCase().indexOf(q) !== -1));
+    if (v('#vrSort') === 'from') list = list.slice().sort((a, b) => a.fromSort - b.fromSort);
+    $('#vrCount').textContent = 'Заявок: ' + list.length;
+    $('#vrBody').innerHTML = list.map(r =>
+      '<tr class="clickable" data-id="' + esc(r.id) + '">' +
+        '<td>' + esc(r.name) + '<div class="muted">' + esc(r.unit) + ' · ' + esc(r.id) + '</div></td>' +
+        '<td>' + esc(r.from) + ' – ' + esc(r.to) + '</td><td>' + r.days + '</td><td>' + esc(r.type) + '</td>' +
+        '<td>' + statusTag(r.status) + '</td></tr>').join('') ||
+      '<tr><td colspan="5" class="muted">Заявок немає. Змініть фільтри.</td></tr>';
+    view().querySelectorAll('#vrBody [data-id]').forEach(tr => tr.onclick = () => { state.vacId = tr.dataset.id; go('vaccard'); });
+  }
+
+  // ---------- Відпустки: картка заявки ----------
+
+  async function renderVacCard() {
+    view().innerHTML = '<p><button class="btn link back" id="vcBack">← Заявки на відпустку</button></p><div id="vacCard"><p class="muted">Завантаження…</p></div>';
+    $('#vcBack').onclick = () => go('vacreqs');
+    try {
+      drawVacCard(await api('vac.card', { id: state.vacId }));
+    } catch (e) {
+      if (!e.gate) $('#vacCard').innerHTML = '<p class="error">' + esc(e.error) + '</p>';
+    }
+  }
+
+  function drawVacCard(d) {
+    const row = (k, val) => val ? '<dt>' + esc(k) + '</dt><dd>' + val + '</dd>' : '';
+    const bal = d.balances;
+    const balHtml = bal
+      ? '<div class="detail-block"><h3>Залишки зараз</h3><dl class="details">' +
+          row('Управлінські', balanceHtml(bal.mgmt)) +
+          bal.officials.map(o => row('Офіційно, ' + o.entity, balanceHtml(o) +
+            (o.workingYear ? '<div class="muted">робочий рік ' + esc(o.workingYear.from) + '–' + esc(o.workingYear.to) + '</div>' : ''))).join('') +
+        '</dl><p class="hint">Погоджені відпустки вже враховані в залишках, зокрема й ця, якщо вона погоджена.</p></div>'
+      : '<div class="detail-block"><p class="muted">Працівник більше не активний.</p></div>';
+
+    const officialHtml = d.official.length
+      ? '<ul class="edit-log">' + d.official.map(r => '<li>' + esc(r.entity) + ': ' + esc(r.type.toLowerCase()) + ' ' + esc(r.from) + ' – ' + esc(r.to) +
+          ' (' + r.days + ' ' + daysWord(r.days) + ')</li>').join('') + '</ul>'
+      : '';
+
+    $('#vacCard').innerHTML =
+      '<h1>Відпустка ' + esc(d.id) + ' ' + statusTag(d.status) + '</h1>' +
+      '<section class="panel"><h2>Заявка</h2>' +
+        '<dl class="details">' +
+          row('Працівник', esc(d.name) + '<div class="muted">' + esc(d.unit) + '</div>') +
+          row('Вид', esc(d.type)) +
+          row('Період', esc(d.fromText) + ' – ' + esc(d.toText) + ' <span class="muted">(' + d.days + ' ' + daysWord(d.days) + ')</span>') +
+          row('Аванс', d.advance ? d.advance + ' ' + daysWord(d.advance) + ', погоджено керівником' : '') +
+          row('Коментар', esc(d.comment)) +
+          row('Подав', esc(d.author) + ' <span class="muted">' + esc(d.received) + '</span>') +
+          row('Офіційна частина', d.officialMode ? esc(d.officialMode) + officialHtml : '') +
+          row('Примітка HR', esc(d.hrNote)) +
+          row('Опрацював', d.processedBy ? esc(d.processedBy) + ' <span class="muted">' + esc(d.processed) + '</span>' : '') +
+          row('Відпускні', esc(d.pay)) +
+        '</dl>' + balHtml +
+      '</section>' +
+      (d.canDecide ? vacDecisionHtml(d) : '') +
+      (d.canCancel && !d.canDecide
+        ? '<section class="panel"><h2>Скасування</h2>' +
+            '<div class="field"><label for="vcNote">Причина' + (d.status === 'Погоджена' ? '' : ' <span class="muted">(необов\'язково)</span>') + '</label><input type="text" id="vcNote"></div>' +
+            (d.status === 'Погоджена' ? '<p class="hint">Дні повернуться на рахунки працівника.</p>' : '') +
+            '<div class="submit-bar"><button class="btn danger" id="vcCancel">Скасувати відпустку</button><div class="form-error" id="vcError" hidden></div></div></section>'
+        : '');
+
+    if (d.canDecide) bindVacDecision(d);
+    if (d.canCancel && !d.canDecide) {
+      $('#vcCancel').onclick = e => confirmTwice(e.target, async () => {
+        try {
+          drawVacCard(await api('vac.cancel', { id: d.id, note: v('#vcNote') }));
+          toast('Відпустку скасовано');
+        } catch (x) {
+          if (x.gate) return;
+          const b = $('#vcError'); b.textContent = x.error; b.hidden = false;
+        }
+      });
+    }
+  }
+
+  // Блок рішення HR: управлінська частина + офіційна (передзаповнена, редагується)
+  function vacDecisionHtml(d) {
+    return '<section class="panel"><h2>Рішення відділу кадрів</h2>' +
+      '<div class="detail-block"><h3>Управлінська відпустка</h3>' +
+        '<div class="field"><label for="vdType">Вид</label><select id="vdType">' +
+          d.types.map(t => '<option' + (t === d.type ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></div>' +
+        '<div class="grid2">' +
+          '<div class="field"><label for="vdFrom">З</label><input type="date" id="vdFrom" value="' + esc(d.from) + '"></div>' +
+          '<div class="field"><label for="vdTo">По</label><input type="date" id="vdTo" value="' + esc(d.to) + '"></div>' +
+        '</div><p class="hint" id="vdDays"></p>' +
+      '</div>' +
+      '<div class="detail-block"><h3>Офіційна частина</h3>' +
+        '<div class="choices" id="vdModes">' + Object.keys(d.modes).map(k =>
+          '<label class="choice"><input type="radio" name="vdMode" value="' + k + '"' +
+            ((d.balances && d.balances.officials.length ? k === 'same' : k === 'none') ? ' checked' : '') +
+            (k !== 'none' && !(d.balances && d.balances.officials.length) ? ' disabled' : '') + '> <span><b>' + esc(d.modes[k]) + '</b></span></label>').join('') +
+        '</div>' +
+        '<div id="vdRows"></div>' +
+      '</div>' +
+      '<div class="field"><label for="vdNote">Примітка HR</label><input type="text" id="vdNote"><div class="hint">Обов\'язкова, якщо заявку відхиляєте.</div></div>' +
+      '<div class="submit-bar">' +
+        '<button class="btn primary" id="vdApprove">Погодити</button>' +
+        '<button class="btn danger" id="vdReject">Відхилити</button>' +
+        '<button class="btn" id="vdCancel">Скасувати заявку</button>' +
+        '<div class="form-error" id="vdError" hidden></div>' +
+      '</div></section>';
+  }
+
+  function bindVacDecision(d) {
+    const officials = d.balances ? d.balances.officials : [];
+    let rows = d.prefill.map(r => Object.assign({}, r));
+
+    const syncSame = () => {
+      // «Разом» — офіційна частина повторює управлінську
+      if (val('vdMode') === 'same' && rows.length) {
+        rows = [Object.assign({}, rows[0], { from: v('#vdFrom'), to: v('#vdTo'), type: v('#vdType') })];
+      }
+    };
+
+    const drawRows = () => {
+      const mode = val('vdMode');
+      $('#vdDays').textContent = isoDays(v('#vdFrom'), v('#vdTo')) + ' календарних днів';
+      if (mode !== 'same' && mode !== 'custom') { $('#vdRows').innerHTML = mode === 'later'
+        ? '<p class="hint">Офіційну відпустку буде оформлено пізніше окремо. Управлінські дні спишуться зараз.</p>' : ''; return; }
+      syncSame();
+      const locked = mode === 'same';
+      $('#vdRows').innerHTML = rows.map((r, i) => {
+        const acc = officials.find(o => o.account === r.account);
+        const days = isoDays(r.from, r.to);
+        const short = acc && r.type === 'Відпустка' && acc.balance !== null && days > acc.balance;
+        return '<div class="vac-row">' +
+          '<div class="grid2">' +
+            '<div class="field"><label>Юрособа</label><select data-i="' + i + '" data-k="account"' + (locked ? ' disabled' : '') + '>' +
+              officials.map(o => '<option value="' + esc(o.account) + '"' + (o.account === r.account ? ' selected' : '') + '>' + esc(o.entity) +
+                ' (залишок ' + (o.balance === null ? '?' : o.balance) + ')</option>').join('') + '</select></div>' +
+            '<div class="field"><label>Вид</label><select data-i="' + i + '" data-k="type"' + (locked ? ' disabled' : '') + '>' +
+              d.types.map(t => '<option' + (t === r.type ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></div>' +
+            '<div class="field"><label>З</label><input type="date" data-i="' + i + '" data-k="from" value="' + esc(r.from) + '"' + (locked ? ' disabled' : '') + '></div>' +
+            '<div class="field"><label>По</label><input type="date" data-i="' + i + '" data-k="to" value="' + esc(r.to) + '"' + (locked ? ' disabled' : '') + '></div>' +
+          '</div>' +
+          '<p class="hint">' + days + ' ' + daysWord(days) + (short ? ' — <b class="error">офіційних днів доступно ' + acc.balance + '</b>' : '') + '</p>' +
+          (short && acc.balance > 0 ? '<button class="btn link" data-split="' + i + '">Розділити: ' + acc.balance + ' — відпустка, решта — за власний рахунок</button>' : '') +
+          (!locked && rows.length > 1 ? '<button class="btn link" data-del="' + i + '">Прибрати рядок</button>' : '') +
+        '</div>';
+      }).join('') + (val('vdMode') === 'custom' ? '<button class="btn" id="vdAdd">+ Додати офіційний запис</button>' : '');
+
+      $('#vdRows').querySelectorAll('[data-k]').forEach(el => el.onchange = () => {
+        rows[Number(el.dataset.i)][el.dataset.k] = el.value;
+        drawRows();
+      });
+      $('#vdRows').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { rows.splice(Number(b.dataset.del), 1); drawRows(); });
+      $('#vdRows').querySelectorAll('[data-split]').forEach(b => b.onclick = () => {
+        const i = Number(b.dataset.split), r = rows[i];
+        const acc = officials.find(o => o.account === r.account);
+        const cut = new Date(r.from + 'T12:00:00'); cut.setDate(cut.getDate() + acc.balance);
+        const iso = x => x.toISOString().slice(0, 10);
+        const lastPaid = new Date(cut); lastPaid.setDate(lastPaid.getDate() - 1);
+        rows.splice(i, 1, Object.assign({}, r, { to: iso(lastPaid) }), Object.assign({}, r, { type: 'За власний рахунок', from: iso(cut) }));
+        $('#vdModes').querySelector('input[value=custom]').checked = true;
+        drawRows();
+      });
+      if ($('#vdAdd')) $('#vdAdd').onclick = () => {
+        rows.push({ account: officials[0].account, type: 'Відпустка', from: v('#vdFrom'), to: v('#vdTo') });
+        drawRows();
+      };
+    };
+
+    ['#vdType', '#vdFrom', '#vdTo'].forEach(s => $(s).addEventListener('change', drawRows));
+    view().querySelectorAll('input[name=vdMode]').forEach(r => r.addEventListener('change', () => {
+      if ((r.value === 'same' || r.value === 'custom') && !rows.length && officials.length) {
+        rows = [{ account: officials[0].account, type: v('#vdType'), from: v('#vdFrom'), to: v('#vdTo') }];
+      }
+      drawRows();
+    }));
+    drawRows();
+
+    const fail = msg => { const b = $('#vdError'); b.textContent = msg; b.hidden = false; };
+    $('#vdApprove').onclick = e => withBusy(e.target, async () => {
+      $('#vdError').hidden = true;
+      syncSame();
+      try {
+        drawVacCard(await api('vac.approve', {
+          id: d.id, mode: val('vdMode'), note: v('#vdNote'),
+          mgmt: { type: v('#vdType'), from: v('#vdFrom'), to: v('#vdTo') },
+          rows: (val('vdMode') === 'same' || val('vdMode') === 'custom') ? rows : []
+        }));
+        toast('Відпустку погоджено');
+      } catch (x) { if (!x.gate) fail(x.error); }
+    });
+    $('#vdReject').onclick = e => withBusy(e.target, async () => {
+      try { drawVacCard(await api('vac.reject', { id: d.id, note: v('#vdNote') })); toast('Заявку відхилено'); }
+      catch (x) { if (!x.gate) fail(x.error); }
+    });
+    $('#vdCancel').onclick = e => confirmTwice(e.target, async () => {
+      try { drawVacCard(await api('vac.cancel', { id: d.id, note: v('#vdNote') })); toast('Заявку скасовано'); }
+      catch (x) { if (!x.gate) fail(x.error); }
+    });
   }
 </script>
 <script>
