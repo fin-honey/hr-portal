@@ -1931,7 +1931,7 @@
   function openVacAdjust(e) {
     const accounts = [{ id: e.mgmt.account, label: 'Управлінські дні' }]
       .concat(e.officials.map(o => ({ id: o.account, label: 'Офіційні — ' + o.entity })));
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localIso(new Date());
     $('#vacAdjust').innerHTML =
       '<div class="panel">' +
         '<div class="panel-head"><h2>' + esc(e.name) + '</h2><button class="btn" id="vaClose">Згорнути</button></div>' +
@@ -1979,6 +1979,12 @@
   }
 
   // ---------- Відпустки: нова заявка ----------
+
+  // Дата YYYY-MM-DD за місцевим часом (не UTC — інакше вночі зсувається день)
+  function localIso(d) {
+    const p = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
 
   function isoDays(from, to) {
     if (!from || !to) return 0;
@@ -2247,7 +2253,7 @@
         const i = Number(b.dataset.split), r = rows[i];
         const acc = officials.find(o => o.account === r.account);
         const cut = new Date(r.from + 'T12:00:00'); cut.setDate(cut.getDate() + acc.balance);
-        const iso = x => x.toISOString().slice(0, 10);
+        const iso = localIso;
         const lastPaid = new Date(cut); lastPaid.setDate(lastPaid.getDate() - 1);
         rows.splice(i, 1, Object.assign({}, r, { to: iso(lastPaid) }), Object.assign({}, r, { type: 'За власний рахунок', from: iso(cut) }));
         $('#vdModes').querySelector('input[value=custom]').checked = true;
@@ -2369,7 +2375,7 @@
       $('#vcAdd').hidden = true; $('#vcClose').hidden = true;
       return;
     }
-    const iso = x => x.toISOString().slice(0, 10);
+    const iso = localIso;
     const plusDays = (s, n) => { const x = new Date(s + 'T12:00:00'); x.setDate(x.getDate() + n); return iso(x); };
     let rows = [{ account: officials[0].account, type: 'Відпустка', from: d.from, to: plusDays(d.from, d.debt - 1) }];
 
