@@ -471,30 +471,40 @@
     }, 5000);
   }
 
+  // Меню за процесами; роль визначає лише наповнення кожного розділу
   function navItems() {
     const b = state.boot;
+    const top = [{ id: 'home', label: 'Головна' }];
+    if (b.canViewEmployees) top.push({ id: 'employees', label: 'Працівники' });
+    const hr = [];
+    if (b.canSubmit) hr.push({ id: 'request', label: 'Нова заявка' }, { id: 'mine', label: 'Мої заявки' });
+    if (b.canHrDesk) hr.push({ id: 'hrdesk', label: 'Заявки на оформлення' });
     const vacations = [];
     if (b.canVacRequest) vacations.push({ id: 'vacnew', label: 'Нова відпустка' });
     if (b.canVacations) vacations.push({ id: 'vacreqs', label: 'Заявки на відпустку' }, { id: 'vacbal', label: 'Залишки днів' });
     if (b.canVacAdjust) vacations.push({ id: 'vac14', label: 'Контроль 14 днів' }, { id: 'vacdebts', label: 'Борги офіційних днів' });
-    const items = [{ id: 'home', label: 'Головна' }];
-    if (b.canSubmit) items.push({ id: 'request', label: 'Нова заявка' }, { id: 'mine', label: 'Мої заявки' });
-    if (b.canHrDesk) items.push({ id: 'hrdesk', label: 'Черга HR' });
-    if (b.canAccounting) items.push({ id: 'accounting', label: 'Бухгалтерія' });
-    if (b.canViewEmployees) items.push({ id: 'employees', label: 'Працівники' });
+    const acc = b.canAccounting ? [
+      { id: 'acctab', label: 'Табельні номери' },
+      { id: 'accsettle', label: 'Розрахунки при звільненні' },
+      { id: 'accvac', label: 'Відпускні' }
+    ] : [];
     const settings = [];
     if (b.canManageUsers) settings.push({ id: 'users', label: 'Користувачі' });
     if (b.editableDicts.length) settings.push({ id: 'dicts', label: 'Довідники' });
     if (b.canSecurity) settings.push({ id: 'security', label: 'Безпека' });
-    return { items, vacations, settings };
+    return { top: top, groups: [
+      { title: 'Кадрові заявки', items: hr },
+      { title: 'Відпустки', items: vacations },
+      { title: 'Бухгалтерія', items: acc },
+      { title: 'Налаштування', items: settings }
+    ] };
   }
 
   function renderShell() {
-    const { items, vacations, settings } = navItems();
+    const { top, groups } = navItems();
     const btn = i => '<button class="nav-item" data-page="' + i.id + '">' + esc(i.label) + '</button>';
-    $('#nav').innerHTML = items.map(btn).join('') +
-      (vacations.length ? '<div class="nav-group">Відпустки</div>' + vacations.map(btn).join('') : '') +
-      (settings.length ? '<div class="nav-group">Налаштування</div>' + settings.map(btn).join('') : '');
+    $('#nav').innerHTML = top.map(btn).join('') +
+      groups.filter(g => g.items.length).map(g => '<div class="nav-group">' + esc(g.title) + '</div>' + g.items.map(btn).join('')).join('');
     $('#nav').onclick = e => {
       const b = e.target.closest('.nav-item');
       if (b) go(b.dataset.page);
@@ -520,8 +530,8 @@
     $('#userBtn').onclick = () => setUserMenu(!document.body.classList.contains('user-open'));
   }
 
-  const PAGE_TITLES = { home: 'Головна', request: 'Нова заявка', mine: 'Мої заявки', hrdesk: 'Черга HR', hrcard: 'Заявка', vacbal: 'Залишки днів', vacnew: 'Нова відпустка', vacreqs: 'Заявки на відпустку', vaccard: 'Відпустка', vac14: 'Контроль 14 днів', vacdebts: 'Борги офіційних днів',
-    accounting: 'Бухгалтерія', employees: 'Працівники', users: 'Користувачі', dicts: 'Довідники', security: 'Безпека' };
+  const PAGE_TITLES = { home: 'Головна', request: 'Нова заявка', mine: 'Мої заявки', hrdesk: 'Заявки на оформлення', hrcard: 'Заявка', vacbal: 'Залишки днів', vacnew: 'Нова відпустка', vacreqs: 'Заявки на відпустку', vaccard: 'Відпустка', vac14: 'Контроль 14 днів', vacdebts: 'Борги офіційних днів',
+    acctab: 'Табельні номери', accsettle: 'Розрахунки при звільненні', accvac: 'Відпускні', employees: 'Працівники', users: 'Користувачі', dicts: 'Довідники', security: 'Безпека' };
 
   function go(page) {
     state.page = page;
@@ -533,7 +543,7 @@
       else b.removeAttribute('aria-current');
     });
     view().onchange = null;
-    ({ home: renderHome, request: renderRequest, mine: renderMine, employees: renderEmployees, hrdesk: renderHrDesk, hrcard: renderHrCard, vacbal: renderVacBalances, vacnew: renderVacNew, vacreqs: renderVacReqs, vaccard: renderVacCard, vac14: renderVac14, vacdebts: renderVacDebts, accounting: renderAccounting,
+    ({ home: renderHome, request: renderRequest, mine: renderMine, employees: renderEmployees, hrdesk: renderHrDesk, hrcard: renderHrCard, vacbal: renderVacBalances, vacnew: renderVacNew, vacreqs: renderVacReqs, vaccard: renderVacCard, vac14: renderVac14, vacdebts: renderVacDebts, acctab: () => renderAccounting('tab'), accsettle: () => renderAccounting('settle'), accvac: () => renderAccounting('vac'),
        users: renderUsers, dicts: renderDictList, security: renderSecurity })[page]();
   }
 
@@ -1431,19 +1441,19 @@
   };
 
   async function renderHrDesk() {
-    view().innerHTML = '<h1>Черга відділу кадрів</h1><p class="muted">Завантаження…</p>';
+    view().innerHTML = '<h1>Заявки на оформлення</h1><p class="muted">Завантаження…</p>';
     try {
       await loadHrQueue();
       drawHrDesk();
     } catch (e) {
-      if (!e.gate) view().innerHTML = '<h1>Черга відділу кадрів</h1><p class="error">' + esc(e.error) + '</p>';
+      if (!e.gate) view().innerHTML = '<h1>Заявки на оформлення</h1><p class="error">' + esc(e.error) + '</p>';
     }
   }
 
   function drawHrDesk() {
     const events = Array.from(new Set(hrQueue.map(q => q.eventLabel))).sort((a, b) => a.localeCompare(b, 'uk'));
     view().innerHTML =
-      '<h1>Черга відділу кадрів</h1>' +
+      '<h1>Заявки на оформлення</h1>' +
       '<p class="lead">Заявки керівників. Відкрийте заявку, внесіть офіційні дані і проведіть її: облік працівників оновиться автоматично.</p>' +
       '<div class="toolbar filters">' +
         '<input type="search" id="hSearch" class="grow" placeholder="Пошук за прізвищем або номером">' +
@@ -1501,7 +1511,7 @@
   }
 
   async function renderHrCard() {
-    view().innerHTML = '<p><button class="btn link back" id="backToQueue">← Черга HR</button></p>' +
+    view().innerHTML = '<p><button class="btn link back" id="backToQueue">← Заявки на оформлення</button></p>' +
       '<div id="hrDetail"><p class="muted">Завантаження заявки…</p></div>';
     $('#backToQueue').onclick = () => go('hrdesk');
     try {
@@ -1568,7 +1578,7 @@
             field('hSalary', 'Офіційний оклад, грн', text('hSalary', 'Офіційний оклад', 'number')) +
             field('hSchedule', 'Офіційний графік', text('hSchedule', 'Офіційний графік')) +
           '</div>' +
-          '<p class="hint">Табельний номер тут не потрібен: після проведення бухгалтер отримає лист про нове оформлення, заведе працівника в 1С і внесе табельний у розділі «Бухгалтерія».</p>' +
+          '<p class="hint">Табельний номер тут не потрібен: після проведення бухгалтер отримає лист про нове оформлення, заведе працівника в 1С і внесе табельний у розділі «Бухгалтерія → Табельні номери».</p>' +
           '<div id="bankBlock" hidden><div class="detail-block"><h3>Реквізити для виплати ЗП</h3>' +
             '<p class="hint">Вкажіть номер картки, IBAN або обидва. Реквізити не зберігаються в порталі — лише в таблиці карток для бухгалтера.</p>' +
             field('hCard', 'Номер картки', '<input type="text" id="hCard" inputmode="numeric" autocomplete="off" placeholder="0000 0000 0000 0000" maxlength="19">') +
@@ -1755,55 +1765,65 @@
 
   // ---------- Бухгалтерія ----------
 
-  async function renderAccounting() {
-    view().innerHTML = '<h1>Бухгалтерія</h1><p class="muted">Завантаження…</p>';
+  const ACC_TITLES = { tab: 'Табельні номери', settle: 'Розрахунки при звільненні', vac: 'Відпускні' };
+
+  async function renderAccounting(section) {
+    state.accSection = section;
+    view().innerHTML = '<h1>' + ACC_TITLES[section] + '</h1><p class="muted">Завантаження…</p>';
     try {
       drawAccounting(await api('acc.overview'));
     } catch (e) {
-      if (!e.gate) view().innerHTML = '<h1>Бухгалтерія</h1><p class="error">' + esc(e.error) + '</p>';
+      if (!e.gate) view().innerHTML = '<h1>' + ACC_TITLES[section] + '</h1><p class="error">' + esc(e.error) + '</p>';
     }
   }
 
   function drawAccounting(d) {
-    view().innerHTML =
-      '<h1>Бухгалтерія</h1>' +
-      '<p class="lead">Табельні номери для нових оформлень і розрахунки при вибутті.</p>' +
+    const section = state.accSection || 'tab';
+    let html = '<h1>' + ACC_TITLES[section] + '</h1>';
 
-      '<h2>Потрібен табельний номер (' + d.needTab.length + ')</h2>' +
-      (d.needTab.length
-        ? '<div class="table-wrap"><table><thead><tr><th>Працівник</th><th>Юрособа</th><th>Офіційна посада</th><th>Дата прийому</th><th>Табельний номер</th></tr></thead><tbody>' +
-            d.needTab.map(t => '<tr><td>' + esc(t.name) + '<div class="muted">' + esc(t.unit) + '</div></td>' +
-              '<td>' + esc(t.entity) + (t.doc ? '<div><a href="' + esc(t.doc) + '" target="_blank" rel="noopener">документ рахунку</a></div>' : '') + '</td>' +
-              '<td>' + esc(t.position) + '</td><td>' + esc(t.start) + '</td>' +
-              '<td class="actions"><div class="inline-edit"><input type="text" data-tab="' + esc(t.oid) + '" placeholder="з 1С">' +
-              '<button class="btn link" data-save="' + esc(t.oid) + '">Зберегти</button></div></td></tr>').join('') +
-          '</tbody></table></div>'
-        : '<p class="muted">Усі офіційні оформлення мають табельні номери.</p>') +
+    if (section === 'tab') {
+      html += '<p class="lead">Нові офіційні оформлення, яким потрібен табельний номер з 1С (' + d.needTab.length + ').</p>' +
+        (d.needTab.length
+          ? '<div class="table-wrap"><table><thead><tr><th>Працівник</th><th>Юрособа</th><th>Офіційна посада</th><th>Дата прийому</th><th>Табельний номер</th></tr></thead><tbody>' +
+              d.needTab.map(t => '<tr><td>' + esc(t.name) + '<div class="muted">' + esc(t.unit) + '</div></td>' +
+                '<td>' + esc(t.entity) + (t.doc ? '<div><a href="' + esc(t.doc) + '" target="_blank" rel="noopener">документ рахунку</a></div>' : '') + '</td>' +
+                '<td>' + esc(t.position) + '</td><td>' + esc(t.start) + '</td>' +
+                '<td class="actions"><div class="inline-edit"><input type="text" data-tab="' + esc(t.oid) + '" placeholder="з 1С">' +
+                '<button class="btn link" data-save="' + esc(t.oid) + '">Зберегти</button></div></td></tr>').join('') +
+            '</tbody></table></div>'
+          : '<p class="muted">Усі офіційні оформлення мають табельні номери.</p>');
+    }
 
-      '<h2>Розрахунок при вибутті (' + d.settlements.length + ')</h2>' +
-      (d.settlements.length
-        ? '<div class="table-wrap"><table><thead><tr><th>Працівник</th><th>Останній робочий день</th><th>Оформлений</th><th>Заявка</th><th></th></tr></thead><tbody>' +
-            d.settlements.map(s => '<tr><td>' + esc(s.name) + '<div class="muted">' + esc(s.unit) + '</div></td>' +
-              '<td>' + esc(s.lastDay) + '</td><td>' + esc(s.official) + '</td>' +
-              '<td>' + esc(s.id) + ' ' + statusTag(s.status) + '</td>' +
-              '<td class="actions"><button class="btn link" data-settle="' + esc(s.id) + '">Розраховано</button></td></tr>').join('') +
-          '</tbody></table></div>'
-        : '<p class="muted">Розрахунків, що очікують, немає.</p>') +
+    if (section === 'settle') {
+      html += '<p class="lead">Працівники, що вибувають, — відмітьте, коли розрахунок проведено (' + d.settlements.length + ').</p>' +
+        (d.settlements.length
+          ? '<div class="table-wrap"><table><thead><tr><th>Працівник</th><th>Останній робочий день</th><th>Оформлений</th><th>Заявка</th><th></th></tr></thead><tbody>' +
+              d.settlements.map(s => '<tr><td>' + esc(s.name) + '<div class="muted">' + esc(s.unit) + '</div></td>' +
+                '<td>' + esc(s.lastDay) + '</td><td>' + esc(s.official) + '</td>' +
+                '<td>' + esc(s.id) + ' ' + statusTag(s.status) + '</td>' +
+                '<td class="actions"><button class="btn link" data-settle="' + esc(s.id) + '">Розраховано</button></td></tr>').join('') +
+            '</tbody></table></div>'
+          : '<p class="muted">Розрахунків, що очікують, немає.</p>');
+    }
 
-      '<h2>Відпускні (' + (d.vacPay || []).length + ')</h2>' +
-      ((d.vacPay || []).length
-        ? '<div class="table-wrap"><table><thead><tr><th>Працівник</th><th>Період</th><th>Офіційно</th><th>Стан</th><th></th></tr></thead><tbody>' +
-            d.vacPay.map(x => '<tr><td>' + esc(x.name) + '<div class="muted">' + esc(x.unit) + ' · ' + esc(x.id) + '</div></td>' +
-              '<td>' + esc(x.period) + ' <span class="muted">(' + x.days + ' дн.)</span></td>' +
-              '<td>' + (x.official ? esc(x.official) : '<span class="muted">—</span>') + '</td>' +
-              '<td>' + (x.pay === 'Очікує' ? statusTag(x.status) : '<b class="error">Скасовано після нарахування</b>') + '</td>' +
-              '<td class="actions">' + (x.pay === 'Очікує'
-                ? '<button class="btn link" data-pay="' + esc(x.id) + '" data-val="Нараховано">Нараховано</button>' +
-                  '<button class="btn link" data-pay="' + esc(x.id) + '" data-val="Не нараховується">Не нараховується</button>'
-                : '<button class="btn link" data-pay="' + esc(x.id) + '" data-val="Ознайомлено">Ознайомлено</button>') + '</td></tr>').join('') +
-          '</tbody></table></div>'
-        : '<p class="muted">Відпусток, що чекають відмітки, немає.</p>');
+    if (section === 'vac') {
+      const list = d.vacPay || [];
+      html += '<p class="lead">Погоджені відпустки — відмітьте, чи нараховано відпускні (' + list.length + ').</p>' +
+        (list.length
+          ? '<div class="table-wrap"><table><thead><tr><th>Працівник</th><th>Період</th><th>Офіційно</th><th>Стан</th><th></th></tr></thead><tbody>' +
+              list.map(x => '<tr><td>' + esc(x.name) + '<div class="muted">' + esc(x.unit) + ' · ' + esc(x.id) + '</div></td>' +
+                '<td>' + esc(x.period) + ' <span class="muted">(' + x.days + ' дн.)</span></td>' +
+                '<td>' + (x.official ? esc(x.official) : '<span class="muted">—</span>') + '</td>' +
+                '<td>' + (x.pay === 'Очікує' ? statusTag(x.status) : '<b class="error">Скасовано після нарахування</b>') + '</td>' +
+                '<td class="actions">' + (x.pay === 'Очікує'
+                  ? '<button class="btn link" data-pay="' + esc(x.id) + '" data-val="Нараховано">Нараховано</button>' +
+                    '<button class="btn link" data-pay="' + esc(x.id) + '" data-val="Не нараховується">Не нараховується</button>'
+                  : '<button class="btn link" data-pay="' + esc(x.id) + '" data-val="Ознайомлено">Ознайомлено</button>') + '</td></tr>').join('') +
+            '</tbody></table></div>'
+          : '<p class="muted">Відпусток, що чекають відмітки, немає.</p>');
+    }
 
+    view().innerHTML = html;
     view().querySelectorAll('[data-save]').forEach(b => b.onclick = () => withBusy(b, async () => {
       const tab = view().querySelector('[data-tab="' + b.dataset.save + '"]').value;
       const res = await api('acc.setTab', { oid: b.dataset.save, tab: tab });
@@ -2208,6 +2228,7 @@
   function bindVacDecision(d) {
     const officials = d.balances ? d.balances.officials : [];
     let rows = d.prefill.map(r => Object.assign({}, r));
+    let offAdv = false;
 
     const syncSame = () => {
       // «Разом» — офіційна частина повторює управлінську
@@ -2242,7 +2263,9 @@
           (short && acc.balance > 0 ? '<button class="btn link" data-split="' + i + '">Розділити: ' + acc.balance + ' — відпустка, решта — за власний рахунок</button>' : '') +
           (!locked && rows.length > 1 ? '<button class="btn link" data-del="' + i + '">Прибрати рядок</button>' : '') +
         '</div>';
-      }).join('') + (val('vdMode') === 'custom' ? '<button class="btn" id="vdAdd">+ Додати офіційний запис</button>' : '');
+      }).join('') + (val('vdMode') === 'custom' ? '<button class="btn" id="vdAdd">+ Додати офіційний запис</button>' : '') +
+        officialAdvanceHtml(officialShort(rows, officials), 'vdOffAdv', offAdv);
+      if ($('#vdOffAdv')) $('#vdOffAdv').onchange = e => { offAdv = e.target.checked; };
 
       $('#vdRows').querySelectorAll('[data-k]').forEach(el => el.onchange = () => {
         rows[Number(el.dataset.i)][el.dataset.k] = el.value;
@@ -2282,7 +2305,8 @@
         drawVacCard(await api('vac.approve', {
           id: d.id, mode: val('vdMode'), note: v('#vdNote'),
           mgmt: { type: v('#vdType'), from: v('#vdFrom'), to: v('#vdTo') },
-          rows: (val('vdMode') === 'same' || val('vdMode') === 'custom') ? rows : []
+          rows: (val('vdMode') === 'same' || val('vdMode') === 'custom') ? rows : [],
+          officialAdvance: !!($('#vdOffAdv') && $('#vdOffAdv').checked)
         }));
         toast('Відпустку погоджено');
       } catch (x) { if (!x.gate) fail(x.error); }
@@ -2295,6 +2319,22 @@
       try { drawVacCard(await api('vac.cancel', { id: d.id, note: v('#vdNote') })); toast('Заявку скасовано'); }
       catch (x) { if (!x.gate) fail(x.error); }
     });
+  }
+
+
+  // Юрособи, де офіційна «Відпустка» перевищує залишок
+  function officialShort(rows, officials) {
+    const need = {};
+    rows.filter(r => r.type === 'Відпустка').forEach(r => { need[r.account] = (need[r.account] || 0) + isoDays(r.from, r.to); });
+    return officials.filter(o => need[o.account] && o.balance !== null && need[o.account] > o.balance)
+      .map(o => esc(o.entity) + ': потрібно ' + need[o.account] + ', доступно ' + o.balance);
+  }
+
+  function officialAdvanceHtml(short, id, checked) {
+    if (!short.length) return '';
+    return '<div class="status-box warn">Офіційних днів не вистачає — ' + short.join('; ') + '. Після проведення офіційний залишок піде в мінус.' +
+      '<label class="check" style="margin-top:8px"><input type="checkbox" id="' + id + '"' + (checked ? ' checked' : '') + '> ' +
+      'Я особисто підтверджую проведення офіційної відпустки в мінус</label></div>';
   }
 
   // ---------- Відпустки: 14 днів, борги (етап 3) ----------
@@ -2378,6 +2418,7 @@
     const iso = localIso;
     const plusDays = (s, n) => { const x = new Date(s + 'T12:00:00'); x.setDate(x.getDate() + n); return iso(x); };
     let rows = [{ account: officials[0].account, type: 'Відпустка', from: d.from, to: plusDays(d.from, d.debt - 1) }];
+    let offAdv = false;
 
     const draw = () => {
       $('#vcRows').innerHTML = rows.map((r, i) => {
@@ -2395,7 +2436,8 @@
             (acc && r.type === 'Відпустка' && acc.balance !== null && days > acc.balance ? ' — <b class="error">офіційних днів доступно ' + acc.balance + '</b>' : '') +
             (closes14(acc, r, days) ? ' — <b>закриває обов\'язкові 14 днів робочого року</b>' : '') + '</p>' +
           (rows.length > 1 ? '<button class="btn link" data-del="' + i + '">Прибрати рядок</button>' : '') + '</div>';
-      }).join('');
+      }).join('') + officialAdvanceHtml(officialShort(rows, officials), 'vcOffAdv', offAdv);
+      if ($('#vcOffAdv')) $('#vcOffAdv').onchange = e => { offAdv = e.target.checked; };
       $('#vcRows').querySelectorAll('[data-k]').forEach(el => el.onchange = () => { rows[Number(el.dataset.i)][el.dataset.k] = el.value; draw(); });
       $('#vcRows').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { rows.splice(Number(b.dataset.del), 1); draw(); });
     };
@@ -2403,7 +2445,7 @@
     $('#vcAdd').onclick = () => { rows.push({ account: officials[0].account, type: 'Відпустка', from: d.from, to: d.from }); draw(); };
     $('#vcClose').onclick = e => withBusy(e.target, async () => {
       try {
-        drawVacCard(await api('vac.closeOfficial', { id: d.id, rows: rows }));
+        drawVacCard(await api('vac.closeOfficial', { id: d.id, rows: rows, officialAdvance: !!($('#vcOffAdv') && $('#vcOffAdv').checked) }));
         toast('Борг закрито офіційно');
       } catch (x) {
         if (x.gate) return;
