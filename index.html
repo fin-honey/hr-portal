@@ -191,6 +191,24 @@
   .status-box.ok { border-color: #B8DCC6; border-left-color: var(--ok); background: #EEF7F1; color: var(--ok); }
   .status-box.warn { border-color: #EBD3A6; border-left-color: var(--honey); background: var(--honey-soft); color: var(--honey); }
   .status-box.err { border-color: #F0C2BF; border-left-color: var(--err); background: #FCEDEC; color: var(--err); }
+  .status-box + .status-box { margin-top: 8px; }
+  #vnInfo:not(:empty), #empOfficials:not(:empty) { margin: 4px 0 16px; }
+  .home-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  /* Підказка «?» */
+  .tip { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; margin-left: 4px;
+         padding: 0; border: 1px solid currentColor; border-radius: 50%; background: none; color: inherit; font: 700 11px/1 inherit;
+         vertical-align: 1px; cursor: help; opacity: .8; }
+  .tip:hover, .tip:focus { opacity: 1; }
+  .tip:hover::after, .tip:focus::after { content: attr(data-tip); position: absolute; z-index: 30; left: 50%; bottom: calc(100% + 8px);
+         transform: translateX(-50%); width: max-content; max-width: min(280px, 80vw); padding: 8px 10px; border-radius: 8px;
+         background: #1E2433; color: #fff; font-weight: 400; font-size: 13px; line-height: 1.4; text-align: left; white-space: normal;
+         box-shadow: 0 6px 18px rgba(0,0,0,.18); }
+  /* Вікно відгуку */
+  .modal-wrap { position: fixed; inset: 0; z-index: 60; background: rgba(30,36,51,.35); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal { width: 100%; max-width: 480px; background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 20px 50px rgba(0,0,0,.2); }
+  .modal h2 { margin: 0 0 6px; }
+  .modal textarea { width: 100%; margin-top: 8px; }
+  .fb-ico { flex: none; }
   .status-box .check { margin-top: 8px; color: var(--ink); font-weight: 600; }
   .panel.invalid-block { border-color: var(--err); }
 
@@ -582,6 +600,9 @@
     // Праворуч у шапці: «Довідка» | користувач (ім'я, роль) → меню з email і «Вийти»
     const initial = esc((me.email || '?').charAt(0).toUpperCase());
     $('#me').innerHTML =
+      '<button class="help-btn" id="fbBtn" aria-label="Надіслати відгук" title="Надіслати відгук">' +
+        '<svg class="fb-ico" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>' +
+        '<span class="help-label">Відгук</span></button>' +
       '<button class="help-btn" id="helpBtn" aria-label="Довідка до цієї сторінки" aria-expanded="false" aria-controls="helpDrawer">' +
         '<span class="help-ico" aria-hidden="true">?</span><span class="help-label">Довідка</span></button>' +
       '<span class="top-sep" aria-hidden="true"></span>' +
@@ -598,6 +619,49 @@
     $('#logoutMobile').onclick = logout;
     $('#userBtn').onclick = () => setUserMenu(!document.body.classList.contains('user-open'));
     $('#helpBtn').onclick = () => document.body.classList.contains('help-open') ? setPanels(false, false, false) : openHelp();
+    $('#fbBtn').onclick = openFeedback;
+  }
+
+  // ---------- Відгук: невелике вікно з текстом ----------
+
+  function openFeedback() {
+    setPanels(false, false, false);
+    let box = $('#fbModal');
+    if (box) box.remove();
+    box = document.createElement('div');
+    box.id = 'fbModal';
+    box.className = 'modal-wrap';
+    box.innerHTML =
+      '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="fbTitle">' +
+        '<h2 id="fbTitle">Відгук</h2>' +
+        '<p class="muted">Що незручно, що не працює або що додати. Відгук прочитає розробник порталу.</p>' +
+        '<textarea id="fbText" rows="5" maxlength="3000" placeholder="Ваш відгук"></textarea>' +
+        '<div class="form-error" id="fbError" hidden></div>' +
+        '<div class="form-actions"><button class="btn primary" id="fbSend">Надіслати</button><button class="btn" id="fbClose">Закрити</button></div>' +
+      '</div>';
+    document.body.appendChild(box);
+    const close = () => box.remove();
+    $('#fbClose').onclick = close;
+    box.addEventListener('mousedown', e => { if (e.target === box) close(); });
+    box.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    $('#fbText').focus();
+    $('#fbSend').onclick = e => withBusy(e.target, async () => {
+      const err = $('#fbError');
+      err.hidden = true;
+      if (!v('#fbText')) { err.textContent = 'Напишіть відгук'; err.hidden = false; return; }
+      try {
+        await api('feedback.send', {
+          text: v('#fbText'),
+          page: (PAGE_TITLES[state.page] || state.page || '') + ' (' + (state.page || '') + ')',
+          device: (window.innerWidth < 761 ? 'телефон' : 'комп\'ютер') + ', ' + navigator.userAgent
+        });
+        close();
+        toast('Дякуємо! Відгук надіслано');
+      } catch (x) {
+        if (x.gate) return;
+        err.textContent = x.error; err.hidden = false;
+      }
+    });
   }
 
   const PAGE_TITLES = { home: 'Головна', request: 'Нова заявка', mine: 'Мої заявки', hrdesk: 'Заявки на оформлення', hrcard: 'Заявка', verify: 'Перевірка даних', verifycard: 'Перевірка працівника', vacbal: 'Залишки днів', vacnew: 'Нова відпустка', vacreqs: 'Заявки на відпустку', vaccard: 'Відпустка', vac14: 'Контроль 14 днів', vacdebts: 'Борги офіційних днів',
@@ -682,11 +746,14 @@
         '<div class="field"><div class="label">Роль</div>' + esc(ROLE_LABELS[me.role] || me.role) + '</div>' +
         '<div class="field"><div class="label">Підрозділи</div>' + unitsLabel(me.units) + '</div>' +
       '</div>' +
-      (state.boot.canSubmit
-        ? '<p><button class="btn primary" id="homeRequest">Подати кадрову заявку</button></p>'
-        : '');
+      '<div class="home-actions">' +
+        (state.boot.canSubmit ? '<button class="btn primary" id="homeRequest">Подати кадрову заявку</button>' : '') +
+        (state.boot.canVacRequest ? '<button class="btn primary" id="homeVacation">Подати заявку на відпустку</button>' : '') +
+      '</div>';
     const hb = $('#homeRequest');
     if (hb) hb.onclick = () => go('request');
+    const hv = $('#homeVacation');
+    if (hv) hv.onclick = () => go('vacnew');
   }
 
   // ---------- Користувачі ----------
@@ -1005,6 +1072,10 @@
     });
   }
 
+  // Підказка «?»: на комп'ютері — при наведенні, на телефоні — дотиком
+  const TIP_WORK_YEAR = 'Робочий рік рахується від дати офіційного прийому на цю юрособу. Наприклад, прийнятий 15.03.2024 — робочий рік з 15.03 по 14.03 наступного року.';
+  const tip = text => '<button type="button" class="tip" aria-label="' + esc(text) + '" data-tip="' + esc(text) + '">?</button>';
+
   const comboValue = id => { const el = $('#' + id + ' .combo-value'); return el ? el.value : ''; };
   const val = name => { const el = document.querySelector('input[name="' + name + '"]:checked'); return el ? el.value : ''; };
   const v = sel => { const el = $(sel); return el ? el.value.trim() : ''; };
@@ -1063,7 +1134,7 @@
       // Існуючий працівник
       '<section class="panel" id="s-employee" hidden><h2>Працівник</h2>' +
         (F.employees.length
-          ? comboField('cEmployee', 'Працівник', 'Почніть вводити прізвище')
+          ? comboField('cEmployee', 'Працівник', 'Почніть вводити прізвище') + '<div id="empOfficials"></div>'
           : '<p class="error">У ваших підрозділах немає активних працівників. Зверніться до відділу кадрів.</p>') +
       '</section>' +
 
@@ -1074,7 +1145,6 @@
         radios('initiator', listOptions(c.initiator), 'Хто ініціатор') +
         radios('source', listOptions(c.source), 'Звідки відома причина') +
         input('rReasonComment', 'Коментар до причини', 'text', { optional: true }) +
-        radios('wasOfficial', mapOptions(c.wasOfficial), 'Чи був працівник оформлений офіційно') +
       '</section>' +
 
       // Зміна
@@ -1138,11 +1208,12 @@
   // --- які розділи показувати ---
 
   function rules() {
-    const t = val('type'), dec = val('decision'), was = val('wasOfficial');
+    const t = val('type'), dec = val('decision');
+    const emp = selectedEmployee();
     const sub = val('subtype'), chg = val('changesFormalization'), basis = val('officialBasis');
     const isNew = t === 'new', isExit = t === 'exit', isChange = t === 'change';
     const moveWithFormal = isChange && sub === 'move' && chg === 'yes';
-    const official = (isExit && was !== '' && was !== 'no') || (isChange && sub === 'unformalize');
+    const official = (isExit && !!emp && emp.officials.length > 0) || (isChange && sub === 'unformalize');
     const docs = (isNew && dec === 'hire') || (isChange && (sub === 'entity' || sub === 'formalize' || moveWithFormal));
     const visit = (isNew && dec === 'hire') || official || (isChange && (sub === 'entity' || sub === 'formalize' || moveWithFormal));
 
@@ -1166,7 +1237,24 @@
     };
   }
 
+  const selectedEmployee = () => ((F && F.employees) || []).find(e => e.fid === comboValue('cEmployee')) || null;
+
+  // Активні оформлення обраного працівника — система знає їх сама, питати не треба
+  function renderEmpOfficials() {
+    const box = $('#empOfficials');
+    if (!box) return;
+    const emp = selectedEmployee(), t = val('type');
+    if (!emp || (t !== 'exit' && t !== 'change')) { box.innerHTML = ''; return; }
+    const list = emp.officials.map(o => '<b>' + esc(o.entity) + '</b>' + (o.position ? ', ' + esc(o.position) : '') +
+      (o.start ? ', з ' + esc(o.start) : '')).join('<br>');
+    box.innerHTML = emp.officials.length
+      ? '<div class="status-box">Офіційне оформлення:<br>' + list +
+          (t === 'exit' ? '<br>Його теж буде звільнено — оберіть підставу в блоці «Офіційне звільнення».' : '') + '</div>'
+      : '<div class="status-box">Офіційного оформлення немає' + (t === 'exit' ? ': буде закрито лише фактичну роботу.' : '.') + '</div>';
+  }
+
   function applyRules() {
+    renderEmpOfficials();
     const r = rules();
     Object.keys(r).forEach(id => { const el = document.getElementById(id); if (el) el.hidden = !r[id]; });
     renderVisitStatus();
@@ -1293,7 +1381,7 @@
       fid: comboValue('cEmployee'),
       lastDay: v('#rLastDay'), exitReason: v('#rExitReason'),
       initiator: val('initiator'), source: val('source'), reasonComment: v('#rReasonComment'),
-      wasOfficial: val('wasOfficial'), officialBasis: val('officialBasis'), appDate: v('#rAppDate'),
+      officialBasis: val('officialBasis'), appDate: v('#rAppDate'),
       subtype: val('subtype'), changeDate: v('#rChangeDate'),
       newUnit: comboValue('cNewUnit'), newPosition: newPos === OTHER ? v('#rNewPositionOther') : newPos,
       changesFormalization: val('changesFormalization'),
@@ -2295,8 +2383,7 @@
       '<h1>Нова відпустка</h1>' +
       '<p class="lead">Вкажіть фактичні дати. Офіційну частину оформить відділ кадрів.</p>' +
       '<div class="panel">' +
-        '<div class="field"><label for="vnEmp">Працівник</label><select id="vnEmp"><option value="">Оберіть працівника…</option>' +
-          d.employees.map(e => '<option value="' + esc(e.pid) + '">' + esc(e.name) + ' — ' + esc(e.unit) + '</option>').join('') + '</select></div>' +
+        comboField('vnEmp', 'Працівник', 'Почніть вводити прізвище') +
         '<div class="field"><div class="label">Вид</div><div class="choices">' +
           d.types.map((t, i) => '<label class="choice"><input type="radio" name="vnType" value="' + esc(t) + '"' + (i === 0 ? ' checked' : '') + '> <span><b>' + esc(t) + '</b>' +
             '<span class="choice-desc">' + (t === 'Відпустка' ? 'Списує дні з залишку' : 'Без збереження ЗП, дні не списуються') + '</span></span></label>').join('') +
@@ -2311,32 +2398,43 @@
       '</div>';
 
     const update = () => {
-      const emp = d.employees.find(e => e.pid === v('#vnEmp'));
+      const emp = d.employees.find(e => e.pid === comboValue('vnEmp'));
       const days = isoDays(v('#vnFrom'), v('#vnTo'));
       const type = val('vnType');
+      const spends = type === 'Відпустка';
+      // ✅ / ❗ — чи вистачає днів на цю відпустку (лише для виду, що списує дні)
+      const verdict = bal => {
+        if (!spends || !days || bal === null || bal === undefined) return '';
+        return bal >= days ? ' — ✅ вистачає' : ' — ❗ не вистачає ' + (days - bal) + ' ' + daysWord(days - bal);
+      };
+      const daysTxt = bal => bal === null || bal === undefined ? 'невідомо' : '<b>' + bal + ' ' + daysWord(bal) + '</b>';
       let html = '';
+      if (days) {
+        html += '<div class="status-box"><b>Ця відпустка: ' + days + ' ' + daysWord(days) + '</b> календарних, ' +
+          fmtUa(v('#vnFrom')) + ' – ' + fmtUa(v('#vnTo')) + (spends ? '' : '. Дні з залишку не списуються') + '</div>';
+      }
       if (emp) {
         const bal = emp.mgmt.balance;
-        html += '<div class="status-box">Залишок: <b>' + (bal === null ? 'невідомий' : bal + ' ' + daysWord(bal)) + '</b> (управлінський)' +
-          (emp.officials.length ? '<br>Офіційно: ' + emp.officials.map(o => esc(o.entity) + ' — ' + (o.balance === null ? '?' : o.balance)).join('; ') : '') +
-          (days ? '<br>Ця відпустка: <b>' + days + ' ' + daysWord(days) + '</b> календарних' : '') + '</div>';
+        html += '<div class="status-box">Залишок управлінський: ' + daysTxt(bal) + verdict(bal) +
+          (emp.officials.length
+            ? '<br>Залишок офіційний:' + emp.officials.map(o => '<br>&nbsp;&nbsp;' + esc(o.entity) + ': ' + daysTxt(o.balance) + verdict(o.balance)).join('')
+            : '<br>Офіційного оформлення немає') + '</div>';
         emp.officials.filter(o => o.req14 && !o.req14.done).forEach(o => {
-          html += '<div class="status-box warn">За законом до <b>' + esc(o.req14.deadline) + '</b> (кінець робочого року, ' + esc(o.entity) +
-            ') працівник має взяти офіційну відпустку від 14 днів поспіль.</div>';
+          html += '<div class="status-box warn">За законом до <b>' + esc(o.req14.deadline) + '</b> (кінець робочого року' + tip(TIP_WORK_YEAR) +
+            ', ' + esc(o.entity) + ') працівник має взяти офіційну відпустку від 14 днів поспіль.</div>';
         });
-        if (type === 'Відпустка' && bal !== null && days > bal) {
+        if (spends && bal !== null && days > bal) {
           const adv = days - bal;
-          html += '<div class="status-box warn">Не вистачає <b>' + adv + ' ' + daysWord(adv) + '</b> — це аванс.' +
+          html += '<div class="status-box warn">Не вистачає <b>' + adv + ' ' + daysWord(adv) + '</b> управлінських — це аванс.' +
             '<label class="check" style="margin-top:8px"><input type="checkbox" id="vnAdvance"> Аванс погоджено з керівником</label></div>';
         }
-      } else if (days) {
-        html = '<div class="status-box">' + days + ' ' + daysWord(days) + ' календарних</div>';
       }
       const keep = $('#vnAdvance') && $('#vnAdvance').checked;
       $('#vnInfo').innerHTML = html;
       if (keep && $('#vnAdvance')) $('#vnAdvance').checked = true;
     };
-    ['#vnEmp', '#vnFrom', '#vnTo'].forEach(s => $(s).addEventListener('change', update));
+    initCombo('vnEmp', d.employees.map(e => ({ value: e.pid, label: e.name, hint: [e.position, e.unit].filter(Boolean).join(', ') })), update);
+    ['#vnFrom', '#vnTo'].forEach(s => $(s).addEventListener('change', update));
     view().querySelectorAll('input[name=vnType]').forEach(r => r.addEventListener('change', update));
 
     $('#vnSubmit').onclick = e => withBusy(e.target, async () => {
@@ -2344,7 +2442,7 @@
       err.hidden = true;
       try {
         const r = await api('vac.submit', {
-          pid: v('#vnEmp'), type: val('vnType'), from: v('#vnFrom'), to: v('#vnTo'),
+          pid: comboValue('vnEmp'), type: val('vnType'), from: v('#vnFrom'), to: v('#vnTo'),
           comment: v('#vnComment'), advance: !!($('#vnAdvance') && $('#vnAdvance').checked)
         });
         toast('Заявку ' + r.id + ' подано');
@@ -2510,7 +2608,7 @@
       const mode = val('vdMode');
       $('#vdDays').textContent = isoDays(v('#vdFrom'), v('#vdTo')) + ' календарних днів';
       if (mode !== 'same' && mode !== 'custom') { $('#vdRows').innerHTML = mode === 'later'
-        ? '<p class="hint">Офіційну відпустку буде оформлено пізніше окремо. Управлінські дні спишуться зараз.</p>' : ''; return; }
+        ? '<p class="hint">Управлінські дні спишуться зараз. Офіційну частину закриєте пізніше без нової заявки: відпустка з\'явиться в «Відпустки → Борги офіційних днів», там або в цій картці натисніть «Закрити офіційно».</p>' : ''; return; }
       syncSame();
       const locked = mode === 'same';
       $('#vdRows').innerHTML = rows.map((r, i) => {
@@ -2528,7 +2626,7 @@
             '<div class="field"><label>По</label><input type="date" data-i="' + i + '" data-k="to" value="' + esc(r.to) + '"' + (locked ? ' disabled' : '') + '></div>' +
           '</div>' +
           '<p class="hint">' + days + ' ' + daysWord(days) + (short ? ' — <b class="error">офіційних днів доступно ' + acc.balance + '</b>' : '') +
-            (closes14(acc, r, days) ? ' — <b>закриває обов\'язкові 14 днів робочого року</b>' : '') + '</p>' +
+            (closes14(acc, r, days) ? ' — <b>закриває обов\'язкові 14 днів робочого року</b>' + tip(TIP_WORK_YEAR) : '') + '</p>' +
           (short && acc.balance > 0 ? '<button class="btn link" data-split="' + i + '">Розділити: ' + acc.balance + ' — відпустка, решта — за власний рахунок</button>' : '') +
           (!locked && rows.length > 1 ? '<button class="btn link" data-del="' + i + '">Прибрати рядок</button>' : '') +
         '</div>';
@@ -2627,7 +2725,7 @@
       const list = await api('vac.control14');
       view().innerHTML =
         '<h1>Контроль 14 днів</h1>' +
-        '<p class="lead">Оформлені працівники, які в поточному робочому році ще не мали офіційної відпустки від 14 днів поспіль. Спершу — ті, в кого робочий рік закінчується раніше.</p>' +
+        '<p class="lead">Оформлені працівники, які в поточному робочому році ще не мали офіційної відпустки від 14 днів поспіль. Спершу — ті, в кого робочий рік' + tip(TIP_WORK_YEAR) + ' закінчується раніше.</p>' +
         '<div class="toolbar filters"><select id="c14Range"><option value="60">До кінця робочого року ≤ 60 днів</option><option value="">Усі</option></select></div>' +
         '<p class="muted" id="c14Count"></p>' +
         '<div class="table-wrap"><table><thead><tr><th>Працівник</th><th>Юрособа</th><th>Робочий рік до</th><th>Залишок офіційних</th></tr></thead><tbody id="c14Body"></tbody></table></div>';
@@ -2703,7 +2801,7 @@
           '<div class="field"><label>По</label><input type="date" data-i="' + i + '" data-k="to" value="' + esc(r.to) + '"></div>' +
           '</div><p class="hint">' + days + ' ' + daysWord(days) +
             (acc && r.type === 'Відпустка' && acc.balance !== null && days > acc.balance ? ' — <b class="error">офіційних днів доступно ' + acc.balance + '</b>' : '') +
-            (closes14(acc, r, days) ? ' — <b>закриває обов\'язкові 14 днів робочого року</b>' : '') + '</p>' +
+            (closes14(acc, r, days) ? ' — <b>закриває обов\'язкові 14 днів робочого року</b>' + tip(TIP_WORK_YEAR) : '') + '</p>' +
           (rows.length > 1 ? '<button class="btn link" data-del="' + i + '">Прибрати рядок</button>' : '') + '</div>';
       }).join('') + officialAdvanceHtml(officialShort(rows, officials), 'vcOffAdv', offAdv);
       if ($('#vcOffAdv')) $('#vcOffAdv').onchange = e => { offAdv = e.target.checked; };
