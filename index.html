@@ -540,7 +540,7 @@
     if (b.canViewEmployees) top.push({ id: 'employees', label: 'Працівники' });
     const hr = [];
     if (b.canSubmit) hr.push({ id: 'request', label: 'Нова заявка' }, { id: 'mine', label: 'Мої заявки' });
-    if (b.canHrDesk) hr.push({ id: 'hrdesk', label: 'Заявки на оформлення' });
+    if (b.canHrDesk) hr.push({ id: 'hrdesk', label: 'Заявки на оформлення' }, { id: 'verify', label: 'Перевірка даних' });
     const vacations = [];
     if (b.canVacRequest) vacations.push({ id: 'vacnew', label: 'Нова відпустка' });
     if (b.canVacations) vacations.push({ id: 'vacreqs', label: 'Заявки на відпустку' }, { id: 'vacbal', label: 'Залишки днів' });
@@ -600,7 +600,7 @@
     $('#helpBtn').onclick = () => document.body.classList.contains('help-open') ? setPanels(false, false, false) : openHelp();
   }
 
-  const PAGE_TITLES = { home: 'Головна', request: 'Нова заявка', mine: 'Мої заявки', hrdesk: 'Заявки на оформлення', hrcard: 'Заявка', vacbal: 'Залишки днів', vacnew: 'Нова відпустка', vacreqs: 'Заявки на відпустку', vaccard: 'Відпустка', vac14: 'Контроль 14 днів', vacdebts: 'Борги офіційних днів',
+  const PAGE_TITLES = { home: 'Головна', request: 'Нова заявка', mine: 'Мої заявки', hrdesk: 'Заявки на оформлення', hrcard: 'Заявка', verify: 'Перевірка даних', verifycard: 'Перевірка працівника', vacbal: 'Залишки днів', vacnew: 'Нова відпустка', vacreqs: 'Заявки на відпустку', vaccard: 'Відпустка', vac14: 'Контроль 14 днів', vacdebts: 'Борги офіційних днів',
     acctab: 'Табельні номери', accsettle: 'Розрахунки при звільненні', accvac: 'Відпускні', employees: 'Працівники', users: 'Користувачі', dicts: 'Довідники', security: 'Безпека' };
 
   function go(page) {
@@ -611,11 +611,11 @@
     document.title = 'HR портал | ' + (PAGE_TITLES[page] || '');
     window.scrollTo(0, 0);
     document.querySelectorAll('.nav-item').forEach(b => {
-      if (b.dataset.page === ({ hrcard: 'hrdesk', vaccard: 'vacreqs' }[page] || page)) b.setAttribute('aria-current', 'page');
+      if (b.dataset.page === ({ hrcard: 'hrdesk', vaccard: 'vacreqs', verifycard: 'verify' }[page] || page)) b.setAttribute('aria-current', 'page');
       else b.removeAttribute('aria-current');
     });
     view().onchange = null;
-    ({ home: renderHome, request: renderRequest, mine: renderMine, employees: renderEmployees, hrdesk: renderHrDesk, hrcard: renderHrCard, vacbal: renderVacBalances, vacnew: renderVacNew, vacreqs: renderVacReqs, vaccard: renderVacCard, vac14: renderVac14, vacdebts: renderVacDebts, acctab: () => renderAccounting('tab'), accsettle: () => renderAccounting('settle'), accvac: () => renderAccounting('vac'),
+    ({ home: renderHome, request: renderRequest, mine: renderMine, employees: renderEmployees, hrdesk: renderHrDesk, hrcard: renderHrCard, verify: renderVerify, verifycard: renderVerifyCard, vacbal: renderVacBalances, vacnew: renderVacNew, vacreqs: renderVacReqs, vaccard: renderVacCard, vac14: renderVac14, vacdebts: renderVacDebts, acctab: () => renderAccounting('tab'), accsettle: () => renderAccounting('settle'), accvac: () => renderAccounting('vac'),
        users: renderUsers, dicts: renderDictList, security: renderSecurity })[page]();
   }
 
@@ -624,7 +624,7 @@
   // Текст береться з Google-документа довідки: вкладка = розділ меню, заголовок 1 = сторінка порталу
 
   // Картки заявок показують довідку свого списку
-  const HELP_PAGE = { hrcard: 'hrdesk', vaccard: 'vacreqs' };
+  const HELP_PAGE = { hrcard: 'hrdesk', vaccard: 'vacreqs', verifycard: 'verify' };
 
   function helpDrawer() {
     let d = $('#helpDrawer');
@@ -1491,6 +1491,144 @@
         '<td>' + esc(s.official.map(o => o.tab).filter(Boolean).join(', ')) + '</td>' +
       '</tr>').join('') ||
       '<tr><td colspan="6" class="muted">Нікого не знайдено. Змініть фільтри.</td></tr>';
+  }
+
+  // ---------- Перевірка даних працівників ----------
+
+  let verifyData = [];
+
+  async function renderVerify() {
+    view().innerHTML = '<h1>Перевірка даних</h1><p class="muted">Завантаження…</p>';
+    try {
+      verifyData = await api('verify.list');
+      drawVerify();
+    } catch (e) {
+      if (!e.gate) view().innerHTML = '<h1>Перевірка даних</h1><p class="error">' + esc(e.error) + '</p>';
+    }
+  }
+
+  function drawVerify() {
+    const units = Array.from(new Set(verifyData.map(s => s.unit).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'uk'));
+    const need = verifyData.filter(s => s.needs).length;
+    view().innerHTML =
+      '<h1>Перевірка даних</h1>' +
+      '<p class="lead">Працівники, перенесені в портал, чекають перевірки: відкрийте людину, звірте дані й підтвердіть. ' +
+        'Потребують перевірки: <b>' + need + '</b> з ' + verifyData.length + '.</p>' +
+      '<div class="toolbar filters">' +
+        '<input type="search" id="vfSearch" class="grow" placeholder="Пошук за прізвищем або посадою">' +
+        '<select id="vfUnit"><option value="">Усі підрозділи</option>' + units.map(u => '<option>' + esc(u) + '</option>').join('') + '</select>' +
+        '<select id="vfState"><option value="need">Потребують перевірки</option><option value="done">Перевірені</option><option value="">Усі</option></select>' +
+      '</div>' +
+      '<p class="muted" id="vfCount"></p>' +
+      '<div class="table-wrap"><table>' +
+        '<thead><tr><th>Працівник</th><th>Підрозділ</th><th>Посада</th><th>Перевірка</th></tr></thead>' +
+        '<tbody id="vfBody"></tbody></table></div>';
+    ['vfSearch', 'vfUnit', 'vfState'].forEach(id => $('#' + id).addEventListener(id === 'vfSearch' ? 'input' : 'change', filterVerify));
+    filterVerify();
+  }
+
+  function verifyStateHtml(s) {
+    if (s.needs) return '<span class="tag new">потребує перевірки</span>' + (s.note ? '<div class="muted">' + esc(s.note) + '</div>' : '');
+    if (s.checkedAt) return '<span class="tag done">перевірено</span><div class="muted">' + esc(s.checkedAt) + ', ' + esc(s.checkedBy) + '</div>';
+    return '<span class="muted">—</span>';
+  }
+
+  function filterVerify() {
+    const q = v('#vfSearch').toLowerCase(), unit = v('#vfUnit'), st = v('#vfState');
+    const list = verifyData.filter(s =>
+      (!unit || s.unit === unit) &&
+      (!st || (st === 'need' ? s.needs : !s.needs && s.checkedAt)) &&
+      (!q || (s.name + ' ' + s.position).toLowerCase().indexOf(q) !== -1));
+    $('#vfCount').textContent = 'Знайдено: ' + list.length;
+    $('#vfBody').innerHTML = list.map(s =>
+      '<tr class="clickable" data-pid="' + esc(s.pid) + '" tabindex="0">' +
+        '<td>' + esc(s.name) + '</td><td>' + esc(s.unit) + '</td><td>' + esc(s.position) + '</td>' +
+        '<td>' + verifyStateHtml(s) + '</td></tr>').join('') ||
+      '<tr><td colspan="4" class="muted">' + (st === 'need' ? 'Усіх перевірено 🎉' : 'Нікого не знайдено. Змініть фільтри.') + '</td></tr>';
+    view().querySelectorAll('#vfBody [data-pid]').forEach(tr => {
+      const open = () => { state.verifyPid = tr.dataset.pid; go('verifycard'); };
+      tr.onclick = open;
+      tr.onkeydown = e => { if (e.key === 'Enter') open(); };
+    });
+  }
+
+  async function renderVerifyCard() {
+    view().innerHTML = '<p><button class="btn link back" id="backToVerify">← Перевірка даних</button></p>' +
+      '<div id="vfDetail"><p class="muted">Завантаження…</p></div>';
+    $('#backToVerify').onclick = () => go('verify');
+    try {
+      drawVerifyCard(await api('verify.card', { pid: state.verifyPid }));
+    } catch (e) {
+      if (!e.gate) $('#vfDetail').innerHTML = '<p class="error">' + esc(e.error) + '</p>';
+    }
+  }
+
+  function drawVerifyCard(d) {
+    const row = (k, val) => '<dt>' + esc(k) + '</dt><dd>' + (val || '<span class="muted">—</span>') + '</dd>';
+    const name = [d.last, d.first, d.middle].filter(Boolean).join(' ');
+    const approx = /приблизна/.test(d.sinceNote) ? ' <span class="tag new">дата приблизна</span>' : '';
+
+    const history = d.facts.length > 1
+      ? '<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Підрозділ</th><th>Посада</th><th>З</th><th>По</th></tr></thead><tbody>' +
+          d.facts.map(f => '<tr' + (f.active ? '' : ' class="inactive"') + '><td>' + esc(f.unit) + '</td><td>' + esc(f.position) + '</td><td>' +
+            esc(f.from) + '</td><td>' + (f.active ? 'зараз' : esc(f.to)) + '</td></tr>').join('') +
+        '</tbody></table></div>'
+      : '';
+
+    const officials = d.officials.length
+      ? d.officials.map(o =>
+          '<div class="detail-block"><h3>Оформлення: ' + esc(o.entity) + '</h3><dl class="details">' +
+            row('Офіційна посада', esc(o.position)) +
+            row('Оклад', o.salary ? esc(o.salary) + ' грн' : '') +
+            row('Графік', esc(o.schedule)) +
+            row('Дата прийому', esc(o.start)) +
+            row('Табельний номер', esc(o.tab)) +
+            row('Залишок офіційних днів', o.balance ? balanceHtml(o.balance) + req14Html(o.balance.req14) : '') +
+          '</dl></div>').join('')
+      : '<div class="detail-block"><h3>Офіційне оформлення</h3><p class="muted">Не оформлений.</p></div>';
+
+    const check = d.needs
+      ? '<p class="status-box">Дані ще не підтверджені. Звірте все вище з документами й 1С.</p>'
+      : (d.checkedAt ? '<p class="status-box">Перевірено ' + esc(d.checkedAt) + ', ' + esc(d.checkedBy) + '.</p>' : '');
+
+    $('#vfDetail').innerHTML =
+      '<h1>' + esc(name) + '</h1>' +
+      '<p class="lead">' + esc(d.unit) + (d.position ? ', ' + esc(d.position) : '') + '</p>' +
+      '<div class="panel">' +
+        '<div class="detail-block"><h3>Особисті дані</h3><dl class="details">' +
+          row('Прізвище, ім\'я, по батькові', esc(name)) +
+          row('РНОКПП', esc(d.ipn)) +
+          row('Створено в порталі', esc(d.created) + (d.source ? ' <span class="muted">(' + esc(d.source) + ')</span>' : '')) +
+        '</dl></div>' +
+        '<div class="detail-block"><h3>Фактична робота</h3><dl class="details">' +
+          row('Підрозділ', esc(d.unit)) +
+          row('Посада', esc(d.position)) +
+          row('У компанії з', esc(d.since) + approx) +
+          row('На посаді з', esc(d.positionSince)) +
+          row('Залишок управлінських днів', d.mgmt ? balanceHtml(d.mgmt) : '') +
+        '</dl>' + history + '</div>' +
+        officials +
+        '<div class="detail-block"><h3>Перевірка</h3>' + check +
+          '<div class="field"><label for="vfNote">Примітка</label>' +
+            '<textarea id="vfNote" rows="2" placeholder="Що не так або що уточнити">' + esc(d.note) + '</textarea>' +
+            '<div class="hint">Залишок днів можна виправити коригуванням у «Відпустки → Залишки днів». Про інші помилки напишіть у примітці й повідомте адміністратора.</div>' +
+          '</div>' +
+          '<div class="form-actions">' +
+            (d.needs
+              ? '<button class="btn primary" id="vfConfirm">Дані правильні — підтвердити</button><button class="btn" id="vfNoteSave">Зберегти примітку</button>'
+              : '<button class="btn" id="vfNoteSave">Зберегти примітку</button><button class="btn" id="vfReopen">Повернути на перевірку</button>') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    const save = (mode, msg) => e => withBusy(e.target, async () => {
+      const r = await api('verify.save', { pid: d.pid, mode: mode, note: v('#vfNote') });
+      toast(msg);
+      if (mode === 'confirm') go('verify'); else drawVerifyCard(r);
+    });
+    if ($('#vfConfirm')) $('#vfConfirm').onclick = save('confirm', 'Дані підтверджено');
+    $('#vfNoteSave').onclick = save('note', 'Примітку збережено');
+    if ($('#vfReopen')) $('#vfReopen').onclick = save('reopen', 'Повернуто на перевірку');
   }
 
   // ---------- Безпека ----------
