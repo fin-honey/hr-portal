@@ -92,12 +92,21 @@
 
   /* ---------- Бічне меню ---------- */
   .rail { background: var(--paper); border-right: 1px solid var(--line); padding: 12px 0; }
-  .rail nav { position: sticky; top: 68px; }
-  .nav-group { font-size: 13px; color: var(--muted); padding: 16px 20px 6px; }
+  .rail-inner { position: sticky; top: 56px; height: calc(100vh - 68px); display: flex; flex-direction: column; }
+  .rail nav { flex: 1 1 auto; overflow-y: auto; }
+  /* Підпис автора внизу меню */
+  .rail-credit { flex: none; display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1;
+                 padding: 14px 20px 14px; border-top: 1px solid var(--line); }
+  .fv-by { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  .fv-mark { font-size: 17px; font-weight: 800; letter-spacing: .09em; color: #1F6BF2; }
+  .nav-section { padding: 6px 0; }
+  .nav-section + .nav-section { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 10px; }
+  .nav-group { font-size: 11.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--honey);
+               padding: 4px 20px 6px; }
   .nav-item { display: block; width: 100%; text-align: left; border: 0; background: none; font: inherit; color: var(--ink);
-              padding: 10px 20px 10px 17px; border-left: 3px solid transparent; cursor: pointer; }
+              padding: 8px 20px 8px 17px; border-left: 3px solid transparent; cursor: pointer; }
   .nav-item:hover { background: var(--surface); }
-  .nav-item[aria-current="page"] { border-left-color: var(--honey); background: var(--honey-soft); font-weight: 600; }
+  .nav-item[aria-current="page"] { border-left-color: var(--honey); background: var(--honey-soft); color: var(--honey); font-weight: 600; }
   .scrim { position: fixed; inset: 56px 0 0 0; background: rgba(30, 36, 51, .35); z-index: 20; }
 
   /* ---------- Основна область ---------- */
@@ -228,7 +237,9 @@
             transform: translateY(-110%); transition: transform .2s ease, visibility .2s; box-shadow: 0 8px 24px rgba(30, 36, 51, .15);
             visibility: hidden; pointer-events: none; }
     body.menu-open .rail { transform: translateY(0); visibility: visible; pointer-events: auto; }
-    .rail nav { position: static; }
+    .rail-inner { position: static; height: auto; }
+    .rail nav { overflow: visible; }
+    .rail-credit { border-top: 0; padding-top: 8px; }
     .nav-item { padding: 14px 20px 14px 17px; }
     /* Шапка: лише значки «?» і аватар */
     .help-label, .top-sep, .me-text, .chev { display: none; }
@@ -286,7 +297,10 @@
   </header>
   <div class="app">
     <aside class="rail" id="rail">
-      <nav id="nav" aria-label="Розділи"></nav>
+      <div class="rail-inner">
+  <nav id="nav" aria-label="Розділи"></nav>
+      <div class="rail-credit" aria-label="Розроблено FINVIDDIL"><span class="fv-by">by</span><span class="fv-mark">FINVIDDIL</span></div>
+      </div>
     </aside>
     <main class="view" id="view">
       <p class="muted">Завантаження…</p>
@@ -551,8 +565,12 @@
   function renderShell() {
     const { top, groups } = navItems();
     const btn = i => '<button class="nav-item" data-page="' + i.id + '">' + esc(i.label) + '</button>';
-    $('#nav').innerHTML = top.map(btn).join('') +
-      groups.filter(g => g.items.length).map(g => '<div class="nav-group">' + esc(g.title) + '</div>' + g.items.map(btn).join('')).join('');
+    // Кожен процес — окремий блок із заголовком і роздільником
+    $('#nav').innerHTML = '<div class="nav-section">' + top.map(btn).join('') + '</div>' +
+      groups.filter(g => g.items.length).map(g =>
+        '<div class="nav-section" role="group" aria-label="' + esc(g.title) + '">' +
+          '<div class="nav-group">' + esc(g.title) + '</div>' + g.items.map(btn).join('') +
+        '</div>').join('');
     $('#nav').onclick = e => {
       const b = e.target.closest('.nav-item');
       if (b) go(b.dataset.page);
