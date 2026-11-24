@@ -36,14 +36,55 @@
   .menu-btn { display: none; width: 40px; height: 40px; border: 0; background: none; border-radius: var(--radius);
               color: var(--ink); align-items: center; justify-content: center; margin-left: -8px; }
   .menu-btn:hover { background: var(--surface); }
-  .me { margin-left: auto; display: flex; align-items: center; gap: 12px; min-width: 0; font-size: 14px; }
-  .me-text { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; min-width: 0; }
-  .me-text b { font-weight: 600; }
-  .me-text span { color: var(--muted); font-size: 13px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .me .logout { padding: 7px 14px; font-size: 14px; }
-  .user-btn { display: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
-              color: var(--ink); align-items: center; justify-content: center; padding: 0; }
-  .user-panel { display: none; }
+  /* Праворуч: «Довідка» | користувач */
+  .me { margin-left: auto; display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; position: relative; }
+  .help-btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border: 0; border-radius: var(--radius);
+              background: none; color: var(--ink); font-weight: 500; }
+  .help-btn:hover, .help-btn[aria-expanded="true"] { background: var(--surface); }
+  .help-ico { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid currentColor; display: inline-flex;
+              align-items: center; justify-content: center; font-size: 14px; font-weight: 700; line-height: 1; }
+  .top-sep { width: 1px; height: 28px; background: var(--line); margin: 0 4px; }
+  .user-btn { display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 8px 0 4px; border: 0; border-radius: var(--radius);
+              background: none; color: var(--ink); min-width: 0; text-align: left; }
+  .user-btn:hover, .user-btn[aria-expanded="true"] { background: var(--surface); }
+  .avatar { flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--honey-soft); color: var(--honey);
+            display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
+  .me-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+  .me-text b { font-weight: 600; font-size: 14px; }
+  .me-text span { color: var(--muted); font-size: 13px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chev { flex: none; color: var(--muted); }
+  /* Меню користувача: на комп'ютері — випадний блок під кнопкою */
+  .user-panel { position: absolute; top: calc(100% + 6px); right: 0; width: 280px; z-index: 35; background: var(--paper);
+                border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px 18px;
+                box-shadow: 0 10px 28px rgba(30, 36, 51, .16); visibility: hidden; opacity: 0; transform: translateY(-4px);
+                transition: opacity .15s ease, transform .15s ease, visibility .15s; }
+  body.user-open .user-panel { visibility: visible; opacity: 1; transform: none; }
+  .user-panel .label { font-size: 13px; color: var(--muted); }
+  .user-panel .user-email { font-weight: 600; word-break: break-all; margin: 2px 0 4px; }
+  .user-panel .logout { margin-top: 14px; width: 100%; padding: 9px; display: block; }
+
+  /* ---------- Довідка: панель праворуч ---------- */
+  .help-drawer { position: fixed; top: 56px; right: 0; bottom: 0; width: 440px; max-width: 100%; z-index: 28; background: var(--paper);
+                 border-left: 1px solid var(--line); box-shadow: -12px 0 32px rgba(30, 36, 51, .14); display: flex; flex-direction: column;
+                 transform: translateX(100%); visibility: hidden; transition: transform .22s ease, visibility .22s; }
+  body.help-open .help-drawer { transform: none; visibility: visible; }
+  @media (min-width: 761px) { body.help-open .app { padding-right: 440px; } body.help-open .help-drawer { box-shadow: -6px 0 24px rgba(30,36,51,.08); } }
+  .help-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px 14px;
+               border-bottom: 1px solid var(--line); }
+  .help-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--honey); }
+  .help-head h2 { margin: 2px 0 0; font-size: 20px; }
+  .help-close { flex: none; width: 36px; height: 36px; border: 0; background: none; color: var(--muted); border-radius: var(--radius);
+                display: inline-flex; align-items: center; justify-content: center; }
+  .help-close:hover { background: var(--surface); color: var(--ink); }
+  .help-scroll { flex: 1; overflow-y: auto; padding: 16px 20px 32px; }
+  .help-note { background: var(--surface); border-radius: var(--radius); padding: 10px 12px; font-size: 14px; color: var(--muted); margin-bottom: 18px; }
+  .help-note a { color: var(--honey); font-weight: 600; }
+  .help-body h3 { font-size: 16px; margin: 22px 0 8px; }
+  .help-body h3:first-child { margin-top: 0; }
+  .help-body p, .help-body li { max-width: none; }
+  .help-body ol, .help-body ul { padding-left: 20px; margin: 0 0 12px; }
+  .help-body li { margin-bottom: 4px; }
+  .help-body a { color: var(--honey); }
   body.no-shell .menu-btn, body.no-shell .rail { display: none !important; }
   body.no-shell .app { grid-template-columns: 1fr; }
 
@@ -93,7 +134,6 @@
   .btn.danger { background: var(--paper); border-color: var(--err); color: var(--err); font-weight: 600; }
   .btn.danger:hover { background: #FCEDEC; }
   .btn[data-armed="1"] { background: var(--err); border-color: var(--err); color: #fff; }
-  .me .logout { display: block; padding: 6px 0 0; }
   input.otp { font-size: 22px; letter-spacing: 0.3em; max-width: 200px; font-variant-numeric: tabular-nums; }
   .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
@@ -190,18 +230,21 @@
     body.menu-open .rail { transform: translateY(0); visibility: visible; pointer-events: auto; }
     .rail nav { position: static; }
     .nav-item { padding: 14px 20px 14px 17px; }
-    .me-text, .me > .logout { display: none; }
-    .user-btn { display: inline-flex; }
+    /* Шапка: лише значки «?» і аватар */
+    .help-label, .top-sep, .me-text, .chev { display: none; }
+    .help-btn { width: 40px; padding: 0; justify-content: center; }
+    .help-ico { width: 26px; height: 26px; }
+    .user-btn { padding: 0; width: 40px; justify-content: center; }
+    /* Довідка на телефоні — на весь екран, над шапкою */
+    .help-drawer { top: 0; width: 100%; border-left: 0; z-index: 40; }
+    .help-head { padding: 12px 12px 12px 16px; }
+    .help-scroll { padding: 14px 16px 32px; }
     /* Меню користувача — висувна панель праворуч, з відступом зліва */
-    .user-panel { display: block; position: fixed; top: 56px; left: 56px; right: 0; z-index: 25; background: var(--paper);
-                  border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); border-bottom-left-radius: var(--radius);
-                  padding: 18px 20px 20px; box-shadow: 0 8px 24px rgba(30, 36, 51, .15);
-                  transform: translateY(-110%); transition: transform .2s ease, visibility .2s;
-                  visibility: hidden; pointer-events: none; }
-    body.user-open .user-panel { transform: translateY(0); visibility: visible; pointer-events: auto; }
-    .user-panel .label { font-size: 13px; color: var(--muted); }
-    .user-panel .user-email { font-weight: 600; word-break: break-all; margin: 2px 0 4px; }
-    .user-panel .logout { margin-top: 14px; width: 100%; padding: 10px; }
+    .user-panel { position: fixed; top: 56px; left: 56px; right: 0; width: auto; z-index: 25; opacity: 1;
+                  border-width: 0 0 1px 1px; border-radius: 0 0 0 var(--radius); padding: 18px 20px 20px;
+                  transform: translateY(-110%); transition: transform .2s ease, visibility .2s; pointer-events: none; }
+    body.user-open .user-panel { transform: translateY(0); pointer-events: auto; }
+    .user-panel .logout { padding: 10px; }
     .view { padding: 20px 16px 40px; }
     h1 { font-size: 22px; }
     .grid2 { grid-template-columns: 1fr; }
@@ -229,7 +272,7 @@
     .submit-bar .btn { flex: 1 1 auto; }
     input[type=text], input[type=email], input[type=number], input[type=search], input[type=date], select, textarea { font-size: 16px; }
   }
-  @media (prefers-reduced-motion: reduce) { .rail, .user-panel { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .rail, .user-panel, .help-drawer { transition: none; } }
 </style>
 
 </head>
@@ -341,13 +384,18 @@
   // ---------- Меню на телефоні ----------
 
   // Ліве меню розділів і праве меню користувача: відкрите може бути лише одне
-  function setPanels(menuOpen, userOpen) {
+  // Ліве меню, меню користувача і довідка: відкрита може бути лише одна панель
+  function setPanels(menuOpen, userOpen, helpOpen) {
     document.body.classList.toggle('menu-open', menuOpen);
     document.body.classList.toggle('user-open', userOpen);
-    const btn = $('#menuBtn'), ubtn = $('#userBtn'), scrim = $('#scrim');
+    document.body.classList.toggle('help-open', !!helpOpen);
+    const btn = $('#menuBtn'), ubtn = $('#userBtn'), hbtn = $('#helpBtn'), scrim = $('#scrim');
     if (btn) btn.setAttribute('aria-expanded', menuOpen ? 'true' : 'false');
     if (ubtn) ubtn.setAttribute('aria-expanded', userOpen ? 'true' : 'false');
-    if (scrim) scrim.hidden = !(menuOpen || userOpen);
+    if (hbtn) hbtn.setAttribute('aria-expanded', helpOpen ? 'true' : 'false');
+    // Довідка на комп'ютері не затемнює сторінку: можна читати й одразу робити
+    const mobile = window.matchMedia('(max-width: 760px)').matches;
+    if (scrim) scrim.hidden = !(menuOpen || userOpen || (helpOpen && mobile));
   }
   function setMenu(open) { setPanels(open, false); }
   function setUserMenu(open) { setPanels(false, open); }
@@ -513,21 +561,25 @@
     const me = state.boot.me;
     state.lastEmail = me.email;
     const roleLabel = esc(ROLE_LABELS[me.role] || me.role);
+    // Праворуч у шапці: «Довідка» | користувач (ім'я, роль) → меню з email і «Вийти»
+    const initial = esc((me.email || '?').charAt(0).toUpperCase());
     $('#me').innerHTML =
-      '<div class="me-text"><b>' + roleLabel + '</b><span>' + esc(me.email) + '</span></div>' +
-      '<button class="btn logout" id="logout">Вийти</button>' +
-      // на телефоні — кнопка-аватар і висувна панель праворуч
+      '<button class="help-btn" id="helpBtn" aria-label="Довідка до цієї сторінки" aria-expanded="false" aria-controls="helpDrawer">' +
+        '<span class="help-ico" aria-hidden="true">?</span><span class="help-label">Довідка</span></button>' +
+      '<span class="top-sep" aria-hidden="true"></span>' +
       '<button class="user-btn" id="userBtn" aria-label="Профіль" aria-expanded="false" aria-controls="userPanel">' +
-        '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8">' +
-        '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" stroke-linecap="round"/></svg></button>' +
+        '<span class="avatar" aria-hidden="true">' + initial + '</span>' +
+        '<span class="me-text"><b>' + roleLabel + '</b><span>' + esc(me.email) + '</span></span>' +
+        '<svg class="chev" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
+      '</button>' +
       '<div class="user-panel" id="userPanel">' +
         '<div class="label">Ви увійшли як</div><div class="user-email">' + esc(me.email) + '</div>' +
         '<div class="muted">' + roleLabel + '</div>' +
         '<button class="btn logout" id="logoutMobile">Вийти</button>' +
       '</div>';
-    $('#logout').onclick = logout;
     $('#logoutMobile').onclick = logout;
     $('#userBtn').onclick = () => setUserMenu(!document.body.classList.contains('user-open'));
+    $('#helpBtn').onclick = () => document.body.classList.contains('help-open') ? setPanels(false, false, false) : openHelp();
   }
 
   const PAGE_TITLES = { home: 'Головна', request: 'Нова заявка', mine: 'Мої заявки', hrdesk: 'Заявки на оформлення', hrcard: 'Заявка', vacbal: 'Залишки днів', vacnew: 'Нова відпустка', vacreqs: 'Заявки на відпустку', vaccard: 'Відпустка', vac14: 'Контроль 14 днів', vacdebts: 'Борги офіційних днів',
@@ -535,7 +587,9 @@
 
   function go(page) {
     state.page = page;
+    const helpWasOpen = document.body.classList.contains('help-open');
     setPanels(false, false);
+    if (helpWasOpen) openHelp();
     document.title = 'HR портал | ' + (PAGE_TITLES[page] || '');
     window.scrollTo(0, 0);
     document.querySelectorAll('.nav-item').forEach(b => {
@@ -545,6 +599,57 @@
     view().onchange = null;
     ({ home: renderHome, request: renderRequest, mine: renderMine, employees: renderEmployees, hrdesk: renderHrDesk, hrcard: renderHrCard, vacbal: renderVacBalances, vacnew: renderVacNew, vacreqs: renderVacReqs, vaccard: renderVacCard, vac14: renderVac14, vacdebts: renderVacDebts, acctab: () => renderAccounting('tab'), accsettle: () => renderAccounting('settle'), accvac: () => renderAccounting('vac'),
        users: renderUsers, dicts: renderDictList, security: renderSecurity })[page]();
+  }
+
+
+  // ---------- Довідка ----------
+  // Текст береться з Google-документа довідки: вкладка = розділ меню, заголовок 1 = сторінка порталу
+
+  // Картки заявок показують довідку свого списку
+  const HELP_PAGE = { hrcard: 'hrdesk', vaccard: 'vacreqs' };
+
+  function helpDrawer() {
+    let d = $('#helpDrawer');
+    if (!d) {
+      d = document.createElement('aside');
+      d.id = 'helpDrawer';
+      d.className = 'help-drawer';
+      d.setAttribute('role', 'dialog');
+      d.setAttribute('aria-labelledby', 'helpTitle');
+      document.body.appendChild(d);
+    }
+    return d;
+  }
+
+  async function openHelp() {
+    const page = HELP_PAGE[state.page] || state.page;
+    const title = PAGE_TITLES[page] || '';
+    const d = helpDrawer();
+    d.innerHTML =
+      '<div class="help-head">' +
+        '<div><div class="help-eyebrow">Довідка до сторінки</div><h2 id="helpTitle">' + esc(title) + '</h2></div>' +
+        '<button class="help-close" id="helpClose" aria-label="Закрити довідку">' +
+          '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>' +
+      '</div>' +
+      '<div class="help-scroll">' +
+        '<div class="help-note" id="helpNote">Тут пояснення лише до цієї сторінки й лише для вашої ролі.</div>' +
+        '<div class="help-body" id="helpBody"><p class="muted">Завантаження…</p></div>' +
+      '</div>';
+    $('#helpClose').onclick = () => setPanels(false, false, false);
+    setPanels(false, false, true);
+    $('#helpClose').focus();
+    try {
+      const r = await api('help.page', { page: title });
+      if (state.page !== page && HELP_PAGE[state.page] !== page) return;  // встигли перейти на іншу сторінку
+      if (r.docUrl) {
+        $('#helpNote').innerHTML = 'Тут пояснення лише до цієї сторінки й лише для вашої ролі. ' +
+          'Усі інструкції — <a href="' + esc(r.docUrl) + '" target="_blank" rel="noopener">у повній довідці ↗</a>';
+      }
+      $('#helpBody').innerHTML = r.html ||
+        '<p class="muted">Для цієї сторінки довідки ще немає.</p>';
+    } catch (e) {
+      if (!e.gate) $('#helpBody').innerHTML = '<p class="error">' + esc(e.error) + '</p>';
+    }
   }
 
   // ---------- Головна ----------
@@ -595,6 +700,8 @@
         '<input type="search" id="userSearch" class="grow" placeholder="Пошук за email або підрозділом" value="' + esc(filter || '') + '">' +
         '<button class="btn primary" id="addUser">Додати користувача</button>' +
       '</div>' +
+      '<p class="muted" style="margin:-4px 0 12px">Доступ до документа довідки (лише перегляд) видається активним користувачам автоматично, без листа. ' +
+        '<button class="btn link" id="syncHelp">Звірити доступ до довідки</button></p>' +
       '<div class="table-wrap"><table>' +
         '<thead><tr><th>Email</th><th>Роль</th><th>Підрозділи</th><th>Статус</th><th></th></tr></thead><tbody>' +
           '<tr><td>' + esc(d.owner) + '</td><td>' + ROLE_LABELS.superadmin + '</td><td>' + unitsLabel(['*']) + '</td><td>Власник системи</td><td></td></tr>' +
@@ -615,6 +722,11 @@
       const s = $('#userSearch'); s.focus(); s.setSelectionRange(pos, pos);
     };
     $('#addUser').onclick = () => openUserForm(null);
+    $('#syncHelp').onclick = e => withBusy(e.target, async () => {
+      const r = await api('users.syncHelp');
+      toast('Довідка: доступ відкрито ' + r.granted + ', закрито ' + r.revoked +
+        (r.errors.length ? '. Помилки: ' + r.errors.join('; ') : ''));
+    });
     view().querySelectorAll('[data-edit]').forEach(b =>
       b.onclick = () => openUserForm(d.users.find(u => u.email === b.dataset.edit)));
   }
@@ -664,7 +776,8 @@
         active: $('#fActive').checked,
         note: $('#fNote').value
       });
-      toast(isNew ? 'Користувача додано' : 'Зміни збережено');
+      toast((isNew ? 'Користувача додано' : 'Зміни збережено') +
+        (state.users.helpWarning ? '. ' + state.users.helpWarning : ''), !!state.users.helpWarning);
       drawUsers();
     });
     (isNew ? $('#fEmail') : $('#fRole')).focus();
