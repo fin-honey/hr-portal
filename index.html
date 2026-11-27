@@ -192,6 +192,8 @@
   .status-box.warn { border-color: #EBD3A6; border-left-color: var(--honey); background: var(--honey-soft); color: var(--honey); }
   .status-box.err { border-color: #F0C2BF; border-left-color: var(--err); background: #FCEDEC; color: var(--err); }
   .status-box + .status-box { margin-top: 8px; }
+  .inline-label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); white-space: nowrap; }
+  .inline-label input { width: auto; }
   #vnInfo:not(:empty), #empOfficials:not(:empty) { margin: 4px 0 16px; }
   .home-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
   /* Підказка «?» */
@@ -1128,6 +1130,17 @@
             '<div class="hint">Один файл: фото або скан (усі сторінки / обидва боки в одному PDF чи на одному фото).</div></div>' +
           '<div class="field"><label for="rIpnDoc">Документ РНОКПП</label>' +
             '<input type="file" id="rIpnDoc" accept="image/*,application/pdf" data-req="Документ РНОКПП"></div>' +
+          radios('empStatus', mapOptions(c.empStatus), 'Статус працевлаштування працівника') +
+          '<div id="s-empnone" hidden><div class="field"><label for="rReleased">Наказ про звільнення з попереднього місця роботи або витяг з реєстру застрахованих осіб' +
+              tip('Документ, що підтверджує: зараз людина ніде не перебуває в трудових відносинах.') + '</label>' +
+            '<input type="file" id="rReleased" accept="image/*,application/pdf" data-req="Наказ про звільнення або витяг з реєстру застрахованих осіб">' +
+            (F.extractGuideUrl ? '<div class="hint"><a href="' + esc(F.extractGuideUrl) + '" target="_blank" rel="noopener">Як отримати витяг з реєстру застрахованих осіб</a></div>' : '') +
+          '</div></div>' +
+          '<div id="s-empother" hidden><div class="field"><label for="rWorkSchedule">Довідка про графік роботи з основного місця роботи</label>' +
+            '<input type="file" id="rWorkSchedule" accept="image/*,application/pdf" data-req="Довідка про графік роботи"></div></div>' +
+          '<div id="s-empleaving" hidden><div class="status-box warn">На момент оформлення в працівника обов\'язково має бути при собі один із документів: ' +
+            '<b>витяг з реєстру застрахованих осіб</b> або <b>наказ про звільнення</b>, де зазначено, що працівник НЕ перебуває в трудових відносинах на момент оформлення.' +
+            (F.docsListUrl ? '<br><a href="' + esc(F.docsListUrl) + '" target="_blank" rel="noopener">Повний перелік документів</a>' : '') + '</div></div>' +
         '</div>' +
       '</section>' +
 
@@ -1235,6 +1248,9 @@
       's-referral': isNew && v('#rChannel').toLowerCase().indexOf('реферал') !== -1,
       's-noreason': isNew && dec === 'no_other',
       's-hiredocs': isNew && dec === 'hire',
+      's-empnone': isNew && dec === 'hire' && val('empStatus') === 'none',
+      's-empother': isNew && dec === 'hire' && val('empStatus') === 'other',
+      's-empleaving': isNew && dec === 'hire' && val('empStatus') === 'leaving',
       's-employee': isExit || isChange,
       's-exit': isExit,
       's-change': isChange,
@@ -1400,7 +1416,7 @@
     const newPos = comboValue('cNewPosition');
     return {
       type: val('type'),
-      surname: v('#rSurname'), name: v('#rName'), patronymic: v('#rPatronymic'), ipn: v('#rIpn'),
+      surname: v('#rSurname'), name: v('#rName'), patronymic: v('#rPatronymic'), ipn: v('#rIpn'), empStatus: val('empStatus'),
       unit: F.units.length === 1 ? F.units[0] : comboValue('cUnit'),
       position: pos === OTHER ? v('#rPositionOther') : pos,
       firstDay: v('#rFirstDay'), channel: v('#rChannel'), referrer: comboValue('cReferrer'),
@@ -1437,6 +1453,8 @@
           passport: await fileToPayload($('#rPassport').files[0]),
           ipn: await fileToPayload($('#rIpnDoc').files[0])
         };
+        if (!$('#s-empnone').hidden) payload.files.released = await fileToPayload($('#rReleased').files[0]);
+        if (!$('#s-empother').hidden) payload.files.workSchedule = await fileToPayload($('#rWorkSchedule').files[0]);
       }
       r = await api('form.submit', payload);
     } catch (e) {
@@ -1481,37 +1499,64 @@
     }
   }
 
+  // dd.MM.yyyy[ HH:mm] → yyyy-MM-dd для порівняння з полями дати
+  const uaToIso = t => { const m = String(t || '').match(/^(\d{2})\.(\d{2})\.(\d{4})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
+
   function drawMine() {
+    if (!myRequests.length) {
+      view().innerHTML = '<h1>Мої заявки</h1><div class="panel"><p>Ви ще не подавали заявок.</p><button class="btn primary" id="mineNew">Подати заявку</button></div>';
+      $('#mineNew').onclick = () => go('request');
+      return;
+    }
     view().innerHTML =
       '<h1>Мої заявки</h1>' +
       '<p class="lead">Заявки, які ви подали. Натисніть на рядок, щоб переглянути деталі.</p>' +
       '<div id="mineDetail"></div>' +
-      (myRequests.length
-        ? '<div class="table-wrap"><table>' +
-            '<thead><tr><th>Номер</th><th>Подано</th><th>Подія</th><th>Працівник</th><th>Візит</th><th>Статус</th></tr></thead><tbody>' +
-            myRequests.map((r, i) =>
-              '<tr class="clickable" data-i="' + i + '">' +
-                '<td>' + esc(r['ID заявки']) + '</td><td>' + esc(r['Отримано'] || '') + '</td>' +
-                '<td>' + esc(r['Подія']) + '</td>' +
-                '<td>' + esc((r['Прізвище'] || '') + ' ' + (r["Ім'я"] || '')) + '<div class="muted">' + esc(r['Підрозділ'] || '') + '</div></td>' +
-                '<td>' + esc(r['Візит'] || '—') + '</td><td>' + statusTag(r['Статус']) + '</td>' +
-              '</tr>').join('') +
-          '</tbody></table></div>'
-        : '<div class="panel"><p>Ви ще не подавали заявок.</p><button class="btn primary" id="mineNew">Подати заявку</button></div>');
+      '<div class="toolbar filters">' +
+        '<input type="search" id="mfSearch" class="grow" placeholder="Пошук за працівником">' +
+        '<select id="mfStatus"><option value="">Усі статуси</option><option>Нова</option><option>Виконана</option><option>Скасована</option></select>' +
+        '<label class="inline-label">Подано з <input type="date" id="mfFrom"></label>' +
+        '<label class="inline-label">по <input type="date" id="mfTo"></label>' +
+      '</div>' +
+      '<p class="muted" id="mfCount"></p>' +
+      '<div class="table-wrap"><table>' +
+        '<thead><tr><th>Номер</th><th>Подано</th><th>Подія</th><th>Працівник</th><th>Візит</th><th>Статус</th></tr></thead>' +
+        '<tbody id="mfBody"></tbody></table></div>';
+    $('#mfSearch').addEventListener('input', filterMine);
+    ['mfStatus', 'mfFrom', 'mfTo'].forEach(id => $('#' + id).addEventListener('change', filterMine));
+    filterMine();
+  }
 
-    view().querySelectorAll('[data-i]').forEach(tr => tr.onclick = () => showMineDetail(myRequests[Number(tr.dataset.i)]));
-    const nb = $('#mineNew');
-    if (nb) nb.onclick = () => go('request');
+  function filterMine() {
+    const q = v('#mfSearch').toLowerCase(), st = v('#mfStatus'), from = v('#mfFrom'), to = v('#mfTo');
+    const list = myRequests.map((r, i) => ({ r: r, i: i })).filter(({ r }) => {
+      const d = uaToIso(r['Отримано']);
+      const name = [r['Прізвище'], r["Ім'я"], r['По батькові']].filter(Boolean).join(' ').toLowerCase();
+      return (!st || r['Статус'] === st) && (!from || d >= from) && (!to || d <= to) && (!q || name.indexOf(q) !== -1);
+    });
+    $('#mfCount').textContent = 'Знайдено: ' + list.length + ' з ' + myRequests.length;
+    $('#mfBody').innerHTML = list.map(({ r, i }) =>
+      '<tr class="clickable" data-i="' + i + '" tabindex="0">' +
+        '<td>' + esc(r['ID заявки']) + '</td><td>' + esc(r['Отримано'] || '') + '</td>' +
+        '<td>' + esc(r['Подія']) + '</td>' +
+        '<td>' + esc((r['Прізвище'] || '') + ' ' + (r["Ім'я"] || '')) + '<div class="muted">' + esc(r['Підрозділ'] || '') + '</div></td>' +
+        '<td>' + esc(r['Візит'] || '—') + '</td><td>' + statusTag(r['Статус']) + '</td>' +
+      '</tr>').join('') || '<tr><td colspan="6" class="muted">Нічого не знайдено. Змініть фільтри.</td></tr>';
+    view().querySelectorAll('#mfBody [data-i]').forEach(tr => {
+      tr.onclick = () => showMineDetail(myRequests[Number(tr.dataset.i)]);
+      tr.onkeydown = e => { if (e.key === 'Enter') showMineDetail(myRequests[Number(tr.dataset.i)]); };
+    });
   }
 
   // Порядок і групування полів у деталях заявки (порядок ключів з сервера не гарантований)
   const DETAIL_GROUPS = [
     { title: 'Заявка', fields: ['Подія', 'Тип звернення', 'Підтип', 'Отримано'] },
     { title: 'Працівник', fields: ['__name', 'РНОКПП', 'Підрозділ', 'Посада', 'Перший робочий день', 'Канал залучення',
-        'Рекомендував', 'Причина неоформлення'] },
+        'Рекомендував', 'Причина неоформлення', 'Статус працевлаштування'] },
     { title: 'Вибуття', fields: ['Останній робочий день', 'Реальна причина вибуття', 'Ініціатор', 'Джерело відповіді',
         'Коментар до причини', 'Чи був оформлений', 'Офіційна підстава', 'Дата заяви'] },
-    { title: 'Зміна', fields: ['Дата змін', 'Новий підрозділ', 'Нова посада', 'Чи змінюється оформлення'] },
+    { title: 'Зміна', fields: ['Дата змін', 'Новий підрозділ', 'Нова посада', 'Чи змінюється оформлення',
+        'Юрособа', 'Дата наказу', 'Дата прийому в нову юрособу'] },
     { title: 'Документи', fields: ['Документи', 'Медогляд'] },
     { title: 'Візит до відділу кадрів', fields: ['Візит', 'Примітка для HR', 'Примітка HR'] },
     { title: 'Обробка', fields: ['Автор (email)', 'Відповідальний HR', 'Проведено', 'Створені / закриті ID'] }
@@ -1519,7 +1564,10 @@
 
   function renderDetailBlocks(r) {
     const value = k => k === '__name' ? [r['Прізвище'], r["Ім'я"], r['По батькові']].filter(Boolean).join(' ') : r[k];
-    const label = k => k === '__name' ? 'Прізвище та ім\'я' : k;
+    const LABELS = { __name: 'Прізвище та ім\'я', 'Юрособа': 'Нова юрособа', 'Дата наказу': 'Дата звільнення з поточної юрособи',
+      'Відповідальний HR': 'Відповідальний з відділу кадрів',
+      'Проведено': r['Статус'] === 'Скасована' ? 'Скасовано' : 'Проведено' };
+    const label = k => LABELS[k] || k;
     return DETAIL_GROUPS.map(g => {
       const rows = g.fields.filter(k => value(k)).map(k =>
         '<dt>' + esc(label(k)) + '</dt><dd' + (k === 'Візит' ? ' class="highlight"' : '') + '>' + esc(value(k)) + '</dd>').join('');
@@ -1528,6 +1576,8 @@
   }
 
   function showMineDetail(r) {
+    // Хто з відділу кадрів веде заявку: якщо ще нікого — так і пишемо
+    if (!r['Відповідальний HR'] && r['Статус'] === 'Нова') r = Object.assign({}, r, { 'Відповідальний HR': 'ще не призначено' });
     $('#mineDetail').innerHTML =
       '<div class="panel">' +
         '<h2>Заявка ' + esc(r['ID заявки']) + ' ' + statusTag(r['Статус']) + '</h2>' +
@@ -1697,6 +1747,7 @@
             row('Офіційна посада', esc(o.position)) +
             row('Оклад', o.salary ? esc(o.salary) + ' грн' : '') +
             row('Графік', esc(o.schedule)) +
+            row('Тип зайнятості', esc(o.type)) +
             row('Дата прийому', esc(o.start)) +
             row('Табельний номер', esc(o.tab)) +
             row('Залишок офіційних днів', o.balance ? balanceHtml(o.balance) + req14Html(o.balance.req14) : '') +
@@ -1911,6 +1962,10 @@
     const open = d.status === 'Нова';
     const needOrderDate = rule.openOfficial || (rule.closeOfficial && d.officials.length > 0);
     const isTransfer = rule.openOfficial && rule.closeOfficial === true;
+    // Тип зайнятості: збережений HR → зі статусу в заявці → як у поточному оформленні
+    const empTypeDefault = hr['Тип зайнятості'] ||
+      (d.empStatus === 'Оформлений на іншому місці роботи' ? 'За сумісництвом' : d.empStatus ? 'Основне місце роботи' : '') ||
+      ((d.officials || [])[0] || {}).type || '';
     const hr = d.hr;
     const field = (id, label, inner, hint) => '<div class="field"><label for="' + id + '">' + esc(label) + '</label>' + inner +
       (hint ? '<div class="hint">' + esc(hint) + '</div>' : '') + '</div>';
@@ -1969,6 +2024,9 @@
             field('hSalary', 'Офіційний оклад, грн', text('hSalary', 'Офіційний оклад', 'number')) +
             field('hSchedule', 'Офіційний графік', text('hSchedule', 'Офіційний графік')) +
           '</div>' +
+          field('hEmpType', 'Тип зайнятості', '<select id="hEmpType"><option value="">Оберіть…</option>' +
+            d.employmentTypes.map(t => '<option' + (t === empTypeDefault ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select>',
+            d.empStatus ? 'Статус зі заявки: ' + esc(d.empStatus) + '.' : '') +
           '<p class="hint">Табельний номер тут не потрібен: після проведення бухгалтер отримає лист про нове оформлення, заведе працівника в 1С і внесе табельний у розділі «Бухгалтерія → Табельні номери».</p>' +
           '<div id="bankBlock" hidden><div class="detail-block"><h3>Реквізити для виплати ЗП</h3>' +
             '<p class="hint">Вкажіть номер картки, IBAN або обидва. Реквізити не зберігаються в порталі — лише в таблиці карток для бухгалтера.</p>' +
@@ -2040,6 +2098,7 @@
         out['Офіційна посада'] = v('#hOffPos');
         out['Офіційний оклад'] = v('#hSalary');
         out['Офіційний графік'] = v('#hSchedule');
+        out['Тип зайнятості'] = v('#hEmpType');
       }
       return out;
     };
