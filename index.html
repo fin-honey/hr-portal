@@ -195,6 +195,7 @@
   .inline-label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); white-space: nowrap; }
   .inline-label input { width: auto; }
   #vnInfo:not(:empty), #empOfficials:not(:empty) { margin: 4px 0 16px; }
+  .row-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
   .home-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
   /* Підказка «?» */
   .tip { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; margin-left: 4px;
@@ -978,10 +979,16 @@
 
   async function renderRequest() {
     view().innerHTML = '<h1>Нова заявка</h1><p class="muted">Завантаження…</p>';
+    // Чернетку відкривають лише кнопкою «Продовжити» в «Мої заявки»; з меню — завжди порожня форма
+    const openId = state.openDraft;
+    state.openDraft = null;
+    state.draftId = null;
     try {
-      F = await api('form.init');
+      const [init, draft] = await Promise.all([api('form.init'), openId ? api('draft.get', { id: openId }) : null]);
+      F = init;
       slotState = null;
       drawRequestForm();
+      if (draft) await restoreDraft(draft);
     } catch (e) {
       view().innerHTML = '<h1>Нова заявка</h1><p class="error">' + esc(e.error) + '</p>';
     }
@@ -1214,6 +1221,7 @@
       // Відправка — поза блоками питань
       '<div class="submit-bar" id="s-final" hidden>' +
         '<button class="btn primary" id="rSubmit">Подати заявку</button>' +
+        '<button class="btn" id="rDraft">Зберегти чернетку</button>' +
         '<div class="form-error" id="formError" hidden></div>' +
       '</div>';
 
@@ -1227,7 +1235,80 @@
     view().onchange = applyRules;
     $('#rVisitDate').addEventListener('change', loadSlots);
     $('#rSubmit').onclick = e => withBusy(e.target, submitRequest);
+    $('#rDraft').onclick = e => withBusy(e.target, saveDraft);
     applyRules();
+  }
+
+  // ---------- Чернетка заявки ----------
+  // Знімок усіх полів форми (крім файлів): звичайні поля за id, перемикачі за name, списки з пошуком — значення й текст
+
+  function snapshotForm() {
+    const snap = { fields: {}, radios: {}, checks: {}, combos: {} };
+    view().querySelectorAll('input, select, textarea').forEach(el => {
+      if (el.type === 'file' || el.closest('.combo')) return;
+      if (el.type === 'radio') { if (el.checked) snap.radios[el.name] = el.value; return; }
+      if (el.type === 'checkbox') { if (el.id) snap.checks[el.id] = el.checked; return; }
+      if (el.id && el.value !== '') snap.fields[el.id] = el.value;
+    });
+    view().querySelectorAll('.combo').forEach(c => {
+      const val = c.querySelector('.combo-value').value;
+      if (val) snap.combos[c.id] = { value: val, label: c.querySelector('.combo-input').value };
+    });
+    return snap;
+  }
+
+  function draftLabel() {
+    const t = { new: 'Новий співробітник', exit: 'Повне вибуття', change: 'Зміна' }[val('type')] || 'Заявка';
+    const who = val('type') === 'new'
+      ? [v('#rSurname'), v('#rName')].filter(Boolean).join(' ')
+      : ($('#cEmployee .combo-input') ? $('#cEmployee .combo-input').value : '');
+    return t + (who ? ': ' + who : '');
+  }
+
+  async function saveDraft() {
+    const r = await api('draft.save', { id: state.draftId, label: draftLabel(), data: snapshotForm() });
+    state.draftId = r.id;
+    const hasFiles = Array.from(view().querySelectorAll('input[type=file]')).some(f => f.files.length);
+    toast('Чернетку збережено' + (hasFiles ? '. Файли в чернетці не зберігаються — додасте їх перед поданням' : '') +
+      '. Знайдете її в «Мої заявки»');
+    showDraftNote(r.updated);
+  }
+
+  function showDraftNote(updated) {
+    let box = $('#draftNote');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'draftNote';
+      box.className = 'status-box';
+      view().querySelector('h1').insertAdjacentElement('afterend', box);
+    }
+    box.innerHTML = 'Чернетка, збережена ' + esc(updated) + '. Файли (документи) в чернетці не зберігаються — додайте їх перед поданням.';
+  }
+
+  async function restoreDraft(d) {
+    const s = d.data || {};
+    Object.keys(s.radios || {}).forEach(name => {
+      const el = view().querySelector('input[type=radio][name="' + name + '"][value="' + CSS.escape(s.radios[name]) + '"]');
+      if (el) el.checked = true;
+    });
+    Object.keys(s.combos || {}).forEach(id => {
+      const c = $('#' + id);
+      if (!c) return;
+      c.querySelector('.combo-value').value = s.combos[id].value;
+      c.querySelector('.combo-input').value = s.combos[id].label;
+    });
+    Object.keys(s.checks || {}).forEach(id => { const el = $('#' + id); if (el) el.checked = !!s.checks[id]; });
+    Object.keys(s.fields || {}).forEach(id => {
+      const el = $('#' + id);
+      if (!el) return;
+      // Час візиту з'явиться в списку після перевірки зайнятості — тимчасово додаємо його, щоб не загубився
+      if (id === 'rVisitHour') el.innerHTML = '<option value="' + esc(s.fields[id]) + '" selected></option>';
+      el.value = s.fields[id];
+    });
+    state.draftId = d.id;
+    applyRules();
+    showDraftNote(d.updated);
+    if (v('#rVisitDate')) await loadSlots();
   }
 
   // --- які розділи показувати ---
@@ -1448,6 +1529,7 @@
     let r;
     try {
       const payload = collectRequest();
+      payload.draftId = state.draftId || '';
       if (!$('#s-hiredocs').hidden) {
         payload.files = {
           passport: await fileToPayload($('#rPassport').files[0]),
@@ -1463,6 +1545,7 @@
       return;
     }
 
+    state.draftId = null;
     view().innerHTML =
       '<h1>Заявку подано</h1>' +
       '<div class="panel">' +
@@ -1492,7 +1575,9 @@
   async function renderMine() {
     view().innerHTML = '<h1>Мої заявки</h1><p class="muted">Завантаження…</p>';
     try {
-      myRequests = await api('requests.mine');
+      const [reqs, drafts] = await Promise.all([api('requests.mine'), api('draft.list')]);
+      myRequests = reqs;
+      myDrafts = drafts;
       drawMine();
     } catch (e) {
       view().innerHTML = '<h1>Мої заявки</h1><p class="error">' + esc(e.error) + '</p>';
@@ -1502,14 +1587,38 @@
   // dd.MM.yyyy[ HH:mm] → yyyy-MM-dd для порівняння з полями дати
   const uaToIso = t => { const m = String(t || '').match(/^(\d{2})\.(\d{2})\.(\d{4})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
 
+  let myDrafts = [];
+
+  function draftsHtml() {
+    if (!myDrafts.length) return '';
+    return '<section class="panel"><h2>Чернетки</h2>' +
+      '<div class="table-wrap"><table><thead><tr><th>Заявка</th><th>Збережено</th><th></th></tr></thead><tbody>' +
+        myDrafts.map(d => '<tr><td>' + esc(d.label) + '</td><td>' + esc(d.updated) + '</td>' +
+          '<td class="row-actions"><button class="btn" data-draft-open="' + esc(d.id) + '">Продовжити</button>' +
+          '<button class="btn link" data-draft-del="' + esc(d.id) + '">Видалити</button></td></tr>').join('') +
+      '</tbody></table></div></section>';
+  }
+
+  function bindDrafts() {
+    view().querySelectorAll('[data-draft-open]').forEach(b => b.onclick = () => { state.openDraft = b.dataset.draftOpen; go('request'); });
+    view().querySelectorAll('[data-draft-del]').forEach(b => {
+      b.onclick = e => {
+        if (b.dataset.confirm !== '1') { b.dataset.confirm = '1'; b.textContent = 'Точно видалити?'; return; }
+        withBusy(e.target, async () => { myDrafts = await api('draft.delete', { id: b.dataset.draftDel }); drawMine(); toast('Чернетку видалено'); });
+      };
+    });
+  }
+
   function drawMine() {
     if (!myRequests.length) {
-      view().innerHTML = '<h1>Мої заявки</h1><div class="panel"><p>Ви ще не подавали заявок.</p><button class="btn primary" id="mineNew">Подати заявку</button></div>';
+      view().innerHTML = '<h1>Мої заявки</h1>' + draftsHtml() +
+        '<div class="panel"><p>Ви ще не подавали заявок.</p><button class="btn primary" id="mineNew">Подати заявку</button></div>';
       $('#mineNew').onclick = () => go('request');
+      bindDrafts();
       return;
     }
     view().innerHTML =
-      '<h1>Мої заявки</h1>' +
+      '<h1>Мої заявки</h1>' + draftsHtml() +
       '<p class="lead">Заявки, які ви подали. Натисніть на рядок, щоб переглянути деталі.</p>' +
       '<div id="mineDetail"></div>' +
       '<div class="toolbar filters">' +
@@ -1524,6 +1633,7 @@
         '<tbody id="mfBody"></tbody></table></div>';
     $('#mfSearch').addEventListener('input', filterMine);
     ['mfStatus', 'mfFrom', 'mfTo'].forEach(id => $('#' + id).addEventListener('change', filterMine));
+    bindDrafts();
     filterMine();
   }
 
