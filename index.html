@@ -1150,12 +1150,24 @@
       // Зміна
       '<section class="panel" id="s-change" hidden><h2>Що змінюється</h2>' +
         radios('subtype', mapOptions(c.subtype), 'Тип зміни') +
-        input('rChangeDate', 'Дата змін', 'date', { hint: 'З якої дати діє нове оформлення або перевід' }) +
+        '<div id="s-changedate">' + input('rChangeDate', 'Дата змін', 'date', { hint: 'З якої дати діє перевід' }) + '</div>' +
         '<div id="s-move" hidden>' +
           comboField('cNewUnit', 'Новий підрозділ', 'Почніть вводити назву підрозділу') +
           comboField('cNewPosition', 'Нова посада', 'Почніть вводити назву посади') +
           '<div id="s-newposother" hidden>' + input('rNewPositionOther', 'Назва нової посади', 'text') + '</div>' +
           radios('changesFormalization', mapOptions(c.yesNo), 'Чи змінюється офіційне оформлення') +
+        '</div>' +
+        // Переоформлення: звільнення з поточної і прийом у нову юрособу — різні дні, візит один
+        '<div id="s-transfer" hidden>' +
+          '<div class="field"><label for="rNewEntity">Нова юрособа <span class="muted">(якщо відомо)</span></label>' +
+            '<select id="rNewEntity"><option value="">Оберіть…</option>' +
+            (F.entities || []).map(x => '<option>' + esc(x) + '</option>').join('') + '</select>' +
+            '<div class="hint">Відділ кадрів зможе змінити при проведенні.</div></div>' +
+          '<div class="grid2">' +
+            input('rTransferExit', 'Дата звільнення з поточної юрособи', 'date') +
+            input('rTransferHire', 'Дата прийому в нову юрособу', 'date') +
+          '</div>' +
+          '<div id="transferStatus"></div>' +
         '</div>' +
       '</section>' +
 
@@ -1227,6 +1239,8 @@
       's-exit': isExit,
       's-change': isChange,
       's-move': isChange && sub === 'move',
+      's-transfer': isChange && (sub === 'entity' || moveWithFormal),
+      's-changedate': isChange && sub !== 'entity' && !moveWithFormal,
       's-newposother': isChange && sub === 'move' && comboValue('cNewPosition') === OTHER,
       's-official': official,
       's-appdate': official && basis === 'За власним бажанням',
@@ -1253,8 +1267,18 @@
       : '<div class="status-box">Офіційного оформлення немає' + (t === 'exit' ? ': буде закрито лише фактичну роботу.' : '.') + '</div>';
   }
 
+  // Звільнення й прийом при переоформленні — різні дні, прийом пізніше
+  function transferCheck() {
+    const a = v('#rTransferExit'), b = v('#rTransferHire');
+    if (!a || !b) return '';
+    if (b <= a) return '<div class="status-box err">Дата прийому має бути пізніше за дату звільнення — це не може бути один день.</div>';
+    const gap = Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5) - 1;
+    return gap > 0 ? '<div class="status-box">Між звільненням і прийомом ' + gap + ' ' + daysWord(gap) + ' без оформлення.</div>' : '';
+  }
+
   function applyRules() {
     renderEmpOfficials();
+    if ($('#transferStatus')) $('#transferStatus').innerHTML = transferCheck();
     const r = rules();
     Object.keys(r).forEach(id => { const el = document.getElementById(id); if (el) el.hidden = !r[id]; });
     renderVisitStatus();
@@ -1288,6 +1312,9 @@
     if (wd === 0 || wd === 6) return { state: 'err', text: 'Це вихідний. Візит можливий лише в робочий день.' };
     if (val('type') === 'exit' && v('#rLastDay') && date > v('#rLastDay')) {
       return { state: 'err', text: 'Візит має бути не пізніше останнього робочого дня (' + fmtUa(v('#rLastDay')) + ').' };
+    }
+    if (!$('#s-transfer').hidden && v('#rTransferExit') && date > v('#rTransferExit')) {
+      return { state: 'err', text: 'Візит має бути не пізніше дати звільнення з поточної юрособи (' + fmtUa(v('#rTransferExit')) + ').' };
     }
     if (!slotState || slotState.date !== date) return { state: 'none', text: 'Перевіряю зайнятість…' };
     if (!hour) return { state: 'none', text: 'Оберіть час.' };
@@ -1383,6 +1410,7 @@
       initiator: val('initiator'), source: val('source'), reasonComment: v('#rReasonComment'),
       officialBasis: val('officialBasis'), appDate: v('#rAppDate'),
       subtype: val('subtype'), changeDate: v('#rChangeDate'),
+      newEntity: v('#rNewEntity'), transferExit: v('#rTransferExit'), transferHire: v('#rTransferHire'),
       newUnit: comboValue('cNewUnit'), newPosition: newPos === OTHER ? v('#rNewPositionOther') : newPos,
       changesFormalization: val('changesFormalization'),
       docs: $('#rDocs').checked, med: val('med'),
@@ -1882,6 +1910,7 @@
     const rule = d.rule;
     const open = d.status === 'Нова';
     const needOrderDate = rule.openOfficial || (rule.closeOfficial && d.officials.length > 0);
+    const isTransfer = rule.openOfficial && rule.closeOfficial === true;
     const hr = d.hr;
     const field = (id, label, inner, hint) => '<div class="field"><label for="' + id + '">' + esc(label) + '</label>' + inner +
       (hint ? '<div class="hint">' + esc(hint) + '</div>' : '') + '</div>';
@@ -1922,7 +1951,12 @@
               : '<p class="error">У працівника немає активного офіційного оформлення. Провести цю заявку неможливо — скасуйте її з поясненням.</p>');
       }
 
-      if (needOrderDate) form += field('hOrderDate', 'Дата наказу', text('hOrderDate', 'Дата наказу', 'date'),
+      if (isTransfer) {
+        form += '<div class="grid2">' +
+            field('hOrderDate', 'Дата звільнення з поточної юрособи', text('hOrderDate', 'Дата наказу', 'date')) +
+            field('hHireDate', 'Дата прийому в нову юрособу', text('hHireDate', 'Дата прийому в нову юрособу', 'date')) +
+          '</div><p class="hint">Прийом — пізніше за звільнення, не той самий день. Офіційні дні відпустки в новій юрособі рахуються з дати прийому.</p>';
+      } else if (needOrderDate) form += field('hOrderDate', 'Дата наказу', text('hOrderDate', 'Дата наказу', 'date'),
         rule.openOfficial ? 'Офіційна дата прийому.' : 'Офіційна дата звільнення.');
 
       if (rule.openOfficial) {
@@ -2000,6 +2034,7 @@
       if (rule.person) out['P-ID'] = v('#hPerson');
       if ($('#hCloseO')) out['O-ID, що закривається'] = v('#hCloseO');
       if (needOrderDate) out['Дата наказу'] = v('#hOrderDate');
+      if (isTransfer) out['Дата прийому в нову юрособу'] = v('#hHireDate');
       if (rule.openOfficial) {
         out['Юрособа'] = v('#hEntity');
         out['Офіційна посада'] = v('#hOffPos');
